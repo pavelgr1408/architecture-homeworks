@@ -59,6 +59,8 @@ workspace {
 
         client -> mobileApp "Использует"
         client -> webApp "Использует"
+        mobileApp -> apiGateway "Использует"
+        webApp -> apiGateway "Использует"
 
         paymentsApi -> paymentGateway "Инициализация оплаты REST"
         paymentGateway -> paymentsApi "Статус оплаты webhook"
@@ -70,11 +72,9 @@ workspace {
     views {
         systemLandscape {
             include *
-            autoLayout lr
         }
         container orderSystem {
             include *
-            autoLayout lr
         }
         styles {
 
