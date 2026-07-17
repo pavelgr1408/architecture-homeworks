@@ -2,160 +2,69 @@ workspace {
 
     model {
 
-        client = person "Пользователь" "Клиент мобильного и web приложения" {
-            tags "Person: Client"
-        }
+        client = person "Пользователь" "Клиент мобильного и web приложения" "Person: Client"
 
-        mobileApp = softwareSystem "Mobile приложение" "Мобильное приложение клиента" {
-            tags "Container: Mobile GUI"
-        }
+        orderSystem = softwareSystem "Система управления заказами" "Платформа управления заказами" "Context: Product" {
 
-        webApp = softwareSystem "Web приложение" "Web интерфейс клиента" {
-            tags "Container: Web GUI"
-        }
+            mobileApp = container "Mobile приложение" "Мобильное приложение клиента" "Mobile Application" "Container: Mobile GUI"
+            webApp = container "Web приложение" "Web интерфейс клиента" "Web Application" "Container: Web GUI"
 
-        apiGateway = softwareSystem "API Gateway" "Единая точка входа REST API" {
-            apiGatewayContainer = container "API Gateway Service" "Маршрутизация запросов" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-        }
+            apiGateway = container "API Gateway" "Единая точка входа REST API" "Backend Service" "Container: Backend Service"
 
-        restaurants = softwareSystem "Сервис ресторанов" "Получение ресторанов и координат" {
-            restaurantApi = container "Restaurant API" "Backend сервис ресторанов" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            restaurantDb = container "PostgreSQL" "Данные ресторанов" "PostgreSQL" {
-                tags "Container: Database"
-            }
+            restaurantApi = container "Restaurant API" "Сервис ресторанов" "Backend Service" "Container: Backend Service"
+            restaurantDb = container "Restaurant PostgreSQL" "Данные ресторанов" "PostgreSQL" "Container: Database"
+
+            menuApi = container "Menu API" "Сервис меню" "Backend Service" "Container: Backend Service"
+            menuDb = container "Menu PostgreSQL" "Данные меню" "PostgreSQL" "Container: Database"
+
+            loyaltyApi = container "Loyalty API" "Акции, промокоды, скидки" "Backend Service" "Container: Backend Service"
+            loyaltyDb = container "Loyalty PostgreSQL" "Данные лояльности" "PostgreSQL" "Container: Database"
+            loyaltyBroker = container "Kafka" "События лояльности" "Message Broker" "Container: Message Broker"
+
+            ordersApi = container "Orders API" "Корзина и оформление заказа" "Backend Service" "Container: Backend Service"
+            ordersDb = container "Orders PostgreSQL" "Данные заказов" "PostgreSQL" "Container: Database"
+
+            paymentsApi = container "Payment API" "Обработка платежей" "Backend Service" "Container: Backend Service"
+            paymentsDb = container "Payment PostgreSQL" "Данные платежей" "PostgreSQL" "Container: Database"
+
+            deliveryApi = container "Delivery API" "Интеграция доставки" "Backend Service" "Container: Backend Service"
+            deliveryDb = container "Delivery PostgreSQL" "Данные доставки" "PostgreSQL" "Container: Database"
+
+            authApi = container "Auth API" "Авторизация пользователей" "Backend Service" "Container: Backend Service"
+            authDb = container "Auth PostgreSQL" "Пользователи" "PostgreSQL" "Container: Database"
+
             restaurantApi -> restaurantDb "Читает и записывает данные"
-        }
-
-        menu = softwareSystem "Сервис меню" "Управление меню ресторанов" {
-            menuApi = container "Menu API" "Backend сервис меню" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            menuDb = container "PostgreSQL" "Данные меню" "PostgreSQL" {
-                tags "Container: Database"
-            }
             menuApi -> menuDb "Читает и записывает данные"
-        }
-
-        loyalty = softwareSystem "Сервис лояльности" "Акции, промокоды, скидки" {
-            loyaltyApi = container "Loyalty API" "Backend сервис лояльности" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            loyaltyDb = container "PostgreSQL" "Данные лояльности" "PostgreSQL" {
-                tags "Container: Database"
-            }
-            loyaltyBroker = container "Kafka" "События лояльности" "Message Broker" {
-                tags "Container: Message Broker"
-            }
             loyaltyApi -> loyaltyDb "Читает и записывает данные"
-        }
-
-        orders = softwareSystem "Сервис заказов" "Корзина и оформление заказа" {
-            ordersApi = container "Orders API" "Backend сервис заказов" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            ordersDb = container "PostgreSQL" "Данные заказов" "PostgreSQL" {
-                tags "Container: Database"
-            }
             ordersApi -> ordersDb "Читает и записывает данные"
-        }
-
-        payments = softwareSystem "Сервис оплаты" "Обработка платежей" {
-            paymentsApi = container "Payment API" "Backend сервис оплаты" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            paymentsDb = container "PostgreSQL" "Данные платежей" "PostgreSQL" {
-                tags "Container: Database"
-            }
             paymentsApi -> paymentsDb "Читает и записывает данные"
-        }
-
-        delivery = softwareSystem "Сервис доставки" "Поиск курьера и статусы доставки" {
-            deliveryApi = container "Delivery API" "Backend сервис доставки" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            deliveryDb = container "PostgreSQL" "Данные доставки" "PostgreSQL" {
-                tags "Container: Database"
-            }
             deliveryApi -> deliveryDb "Читает и записывает данные"
-        }
-
-        auth = softwareSystem "Сервис авторизации" "Авторизация пользователей" {
-            authApi = container "Auth API" "Backend сервис авторизации" "Backend Service" {
-                tags "Container: Backend Service"
-            }
-            authDb = container "PostgreSQL" "Пользователи" "PostgreSQL" {
-                tags "Container: Database"
-            }
             authApi -> authDb "Читает и записывает данные"
+
+            apiGateway -> restaurantApi "Получить рестораны REST"
+            apiGateway -> menuApi "Получить меню REST"
+            apiGateway -> loyaltyApi "Получить акции REST"
+            apiGateway -> ordersApi "Создать заказ REST"
+            apiGateway -> paymentsApi "Оплата REST"
+            apiGateway -> deliveryApi "Статус доставки REST"
+            apiGateway -> authApi "Авторизация REST"
+
+            loyaltyApi -> ordersApi "Промокоды и скидки"
+            ordersApi -> paymentsApi "Передать заказ на оплату"
+            ordersApi -> deliveryApi "Передать заказ на доставку"
         }
 
-        paymentGateway = softwareSystem "Платежный шлюз" "Внешняя платежная система" {
-            tags "Context: External"
-        }
-
-        deliverySystem = softwareSystem "Система доставки" "Внешняя система доставки" {
-            tags "Context: External"
-        }
+        paymentGateway = softwareSystem "Платежный шлюз" "Внешняя платежная система" "Context: External"
+        deliverySystem = softwareSystem "Система доставки" "Внешняя система доставки" "Context: External"
 
         client -> mobileApp "Использует"
         client -> webApp "Использует"
 
-        mobileApp -> apiGatewayContainer "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        webApp -> apiGatewayContainer "REST API" {
-            tags "Relation: Asynchronous"
-        }
-
-        apiGatewayContainer -> restaurantApi "Получить рестораны" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> menuApi "Получить меню" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> loyaltyApi "Получить акции" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> ordersApi "Создать заказ" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> paymentsApi "Оплата" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> deliveryApi "Статус доставки" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        apiGatewayContainer -> authApi "Авторизация" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-
-        loyaltyApi -> ordersApi "Промокоды и скидки" {
-            tags "Relation: Asynchronous"
-        }
-
-        ordersApi -> paymentsApi "Передать заказ на оплату" "Kafka" {
-            tags "Relation: Asynchronous"
-        }
-
-        paymentsApi -> paymentGateway "Инициализация оплаты" "REST API" {
-            tags "Relation: Asynchronous"
-        }
-        paymentGateway -> paymentsApi "Статус оплаты" "Webhook" {
-            tags "Relation: Asynchronous"
-        }
-
-        ordersApi -> deliveryApi "Передать заказ на доставку через" "Kafka" {
-            tags "Relation: Asynchronous"
-        }
+        paymentsApi -> paymentGateway "Инициализация оплаты REST"
+        paymentGateway -> paymentsApi "Статус оплаты webhook"
 
         deliveryApi -> deliverySystem "Поиск курьера"
-        deliverySystem -> deliveryApi "Статус доставки" "Webhook" {
-            tags "Relation: Asynchronous"
-        }
+        deliverySystem -> deliveryApi "Статус доставки webhook"
     }
 
     views {
@@ -163,7 +72,12 @@ workspace {
             include *
             autoLayout lr
         }
+        container orderSystem {
+            include *
+            autoLayout lr
+        }
         styles {
+
             element "Person: Client" {
                 background #8fbc8f
                 color #000000
@@ -305,9 +219,5 @@ workspace {
                 routing Direct
             }
         }
-    }
-
-    configuration {
-        scope softwaresystem
     }
 }
