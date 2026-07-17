@@ -1,0 +1,47 @@
+site_name: Architecture Homeworks
+site_description: Домашние задания по архитектуре ПО
+site_author: Pavel Grigoriev
+
+repo_name: pavelgr1408/architecture-homeworks
+repo_url: https://github.com/pavelgr1408/architecture-homeworks
+
+use_directory_urls: true
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: ru
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search:
+      lang:
+        - ru
+        - en
+  - awesome-pages
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: Copyright &copy; 2026 Pavel Grigoriev

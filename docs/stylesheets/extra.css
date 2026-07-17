@@ -1,0 +1,37 @@
+:root {
+  --content-max-width: 1200px;
+}
+
+.md-grid {
+  max-width: var(--content-max-width);
+}
+
+.arch-frame {
+  width: 100%;
+  min-height: 760px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  background: #fff;
+}
+
+.swagger-frame {
+  width: 100%;
+  min-height: 900px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  background: #fff;
+}
+
+.diagram {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1rem auto;
+}
+
+.homework-card {
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+}

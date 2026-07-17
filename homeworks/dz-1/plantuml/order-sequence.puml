@@ -1,0 +1,17 @@
+@startuml
+title Создание заказа
+
+actor Клиент
+participant "API Gateway" as Gateway
+participant "Order Service" as Orders
+database PostgreSQL as DB
+queue Kafka
+
+Клиент -> Gateway: POST /orders
+Gateway -> Orders: createOrder(command)
+Orders -> DB: INSERT order
+DB --> Orders: orderId
+Orders -> Kafka: publish OrderCreated
+Orders --> Gateway: 201 Created
+Gateway --> Клиент: Order
+@enduml

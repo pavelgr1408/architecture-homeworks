@@ -1,0 +1,6 @@
+title: "ДЗ-1. Проектирование сервиса заказов"
+order: 10
+description: "Пример полного домашнего задания: Markdown, изображение, PlantUML, Structurizr и Swagger UI."
+plantuml: true
+structurizr: true
+openapi: true

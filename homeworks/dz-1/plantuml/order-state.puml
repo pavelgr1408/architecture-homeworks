@@ -1,0 +1,13 @@
+@startuml
+title Жизненный цикл заказа
+
+[*] --> CREATED
+CREATED --> PAYMENT_PENDING : request payment
+PAYMENT_PENDING --> PAID : payment accepted
+PAYMENT_PENDING --> CANCELLED : payment rejected
+PAID --> COOKING : start cooking
+COOKING --> READY : cooking completed
+READY --> DELIVERED : hand over
+CANCELLED --> [*]
+DELIVERED --> [*]
+@enduml

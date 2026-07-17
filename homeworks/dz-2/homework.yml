@@ -1,0 +1,6 @@
+title: "ДЗ-2. Интеграция каталога и склада"
+order: 20
+description: "Второй пример показывает, что состав каждого ДЗ может отличаться: здесь используются Markdown и PlantUML."
+plantuml: true
+structurizr: false
+openapi: false

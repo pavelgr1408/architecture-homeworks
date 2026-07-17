@@ -1,0 +1,16 @@
+@startuml
+title Обновление доступности товара
+
+participant "Warehouse Service" as Warehouse
+queue Kafka
+participant "Catalog Service" as Catalog
+database "Catalog Read DB" as CatalogDb
+actor Пользователь
+
+Warehouse -> Kafka: StockChanged(productId, available)
+Kafka -> Catalog: StockChanged
+Catalog -> CatalogDb: UPSERT availability
+Пользователь -> Catalog: GET /products
+Catalog -> CatalogDb: SELECT products
+Catalog --> Пользователь: products with availability
+@enduml
