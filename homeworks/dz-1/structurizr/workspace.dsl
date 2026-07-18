@@ -287,7 +287,7 @@ workspace {
                 color #008080
             }
             relationship "Relation: Uses" {
-                color #008000
+                color #FFFFFF
                 style Dashed
                 routing Direct
             }
