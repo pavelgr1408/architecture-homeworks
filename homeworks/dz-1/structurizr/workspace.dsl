@@ -194,6 +194,7 @@ workspace {
     }
 
     views {
+        theme default
         systemLandscape {
             include *
         }
