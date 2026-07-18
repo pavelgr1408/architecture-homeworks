@@ -1,10 +1,17 @@
 workspace {
 
     model {
-
         user_client = person "Пользователь" {
             description "Клиент мобильного и web приложения"
             tags "Person: Client"
+        }
+        sys_paymentGateway = softwareSystem "Платежный шлюз" {
+            description "Внешняя платежная система"
+            tags "Context: External"
+        }
+        sys_deliverySystem = softwareSystem "Система доставки" {
+            description "Внешняя система доставки"
+            tags "Context: External"
         }
         sys_orderSystem = softwareSystem "Система управления заказами" {
             description "Платформа управления заказами"
@@ -13,17 +20,17 @@ workspace {
                 description "Мобильное приложение клиента"
                 technology "Mobile Application"
                 tags "Container: Mobile GUI"
-                
+                user_client -> this "Использует" {
+                    tags "Relation: Uses"
+                }
             }
             cont_webApp = container "web-app" {
                 description "Web интерфейс клиента"
                 technology "Web Application"
                 tags "Container: Web GUI"
-            }
-            cont_apiGateway = container "api-gateway" {
-                description "Единая точка входа REST API"
-                technology "REST API Gateway"
-                tags "Container: Backend Service"
+                user_client -> this "Использует" {
+                    tags "Relation: Uses"
+                }
             }
             db_restaurantDb = container "restaurant-db" {
                 description "Данные ресторанов"
@@ -34,8 +41,10 @@ workspace {
                 description "Сервис ресторанов"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_restaurantDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
             }
-            
             db_menuDb = container "menu-db" {
                 description "Данные меню"
                 technology "PostgreSQL"
@@ -45,6 +54,9 @@ workspace {
                 description "Сервис управления меню"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_menuDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
             }
             db_loyaltyDb = container "loyalty-db" {
                 description "Данные лояльности"
@@ -55,6 +67,9 @@ workspace {
                 description "Акции, промокоды и скидки"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_loyaltyDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
             }
             db_ordersDb = container "orders-db" {
                 description "Данные заказов"
@@ -65,6 +80,12 @@ workspace {
                 description "Корзина и оформление заказа"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_ordersDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
+                cont_loyaltyApi -> this "Применение промокодов и скидок" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
             }
             db_paymentsDb = container "payment-db" {
                 description "Данные платежей"
@@ -75,6 +96,18 @@ workspace {
                 description "Обработка платежей"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_paymentsDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
+                cont_ordersApi -> this "Передача заказа на оплату" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> sys_paymentGateway "Инициализация оплаты" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                sys_paymentGateway -> this "Статус оплаты" "Webhook" {
+                    tags "Relation: Asynchronous"
+                }
             }
             db_deliveryDb = container "delivery-db" {
                 description "Данные доставки"
@@ -85,6 +118,18 @@ workspace {
                 description "Интеграция доставки"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_deliveryDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
+                cont_ordersApi -> this "Передача заказа на доставку" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> sys_deliverySystem "Поиск курьера" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                sys_deliverySystem -> this "Статус доставки" "Webhook" {
+                    tags "Relation: Asynchronous"
+                }
             }
             db_authDb = container "auth-db" {
                 description "Пользователи"
@@ -95,101 +140,42 @@ workspace {
                 description "Авторизация пользователей"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
+                this -> db_authDb "CRUD операции" "DB" {
+                    tags "Relation: Synchronous"
+                }
             }
-            
-            cont_restaurantApi -> db_restaurantDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
+            cont_apiGateway = container "api-gateway" {
+                description "Единая точка входа"
+                technology "API Gateway"
+                tags "Container: Backend Service"
+                this -> cont_restaurantApi "Получение ресторанов" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_menuApi "Получение меню" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_loyaltyApi "Получение акций" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_ordersApi "Создание заказа" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_paymentsApi "Оплата заказа" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_deliveryApi "Получение статуса доставки" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_authApi "Авторизация" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                cont_mobileApp -> this "Использует" {
+                    tags "Relation: Uses"
+                }
+                cont_webApp -> this "Использует" {
+                    tags "Relation: Uses"
+                }
             }
-            cont_menuApi -> db_menuDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_loyaltyApi -> db_loyaltyDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_ordersApi -> db_ordersDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_paymentsApi -> db_paymentsDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_deliveryApi -> db_deliveryDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_authApi -> db_authDb "CRUD операции" "DB" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_restaurantApi "Получение ресторанов" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_menuApi "Получение меню" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_loyaltyApi "Получение акций" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_ordersApi "Создание заказа" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_paymentsApi "Оплата заказа" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_deliveryApi "Получение статуса доставки" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_apiGateway -> cont_authApi "Авторизация" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_loyaltyApi -> cont_ordersApi "Применение промокодов и скидок" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_ordersApi -> cont_paymentsApi "Передача заказа на оплату" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-            cont_ordersApi -> cont_deliveryApi "Передача заказа на доставку" "HTTP REST" {
-                tags "Relation: Synchronous"
-            }
-        }
-
-        sys_paymentGateway = softwareSystem "Платежный шлюз" {
-            description "Внешняя платежная система"
-            tags "Context: External"
-        }
-
-        sys_deliverySystem = softwareSystem "Система доставки" {
-            description "Внешняя система доставки"
-            tags "Context: External"
-        }
-
-        user_client -> cont_mobileApp "Использует" {
-            tags "Relation: Uses"
-        }
-
-        user_client -> cont_webApp "Использует" {
-            tags "Relation: Uses"
-        }
-
-        cont_mobileApp -> cont_apiGateway "Использует" {
-            tags "Relation: Uses"
-        }
-
-        cont_webApp -> cont_apiGateway "Использует" {
-            tags "Relation: Uses"
-        }
-
-        cont_paymentsApi -> sys_paymentGateway "Инициализация оплаты" "HTTP REST" {
-            tags "Relation: Synchronous"
-        }
-
-        sys_paymentGateway -> cont_paymentsApi "Статус оплаты" "Webhook" {
-            tags "Relation: Asynchronous"
-        }
-
-        cont_deliveryApi -> sys_deliverySystem "Поиск курьера" "HTTP REST" {
-            tags "Relation: Synchronous"
-        }
-
-        sys_deliverySystem -> cont_deliveryApi "Статус доставки" "Webhook" {
-            tags "Relation: Asynchronous"
         }
     }
 
