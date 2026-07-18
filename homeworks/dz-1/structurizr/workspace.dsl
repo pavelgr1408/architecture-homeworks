@@ -306,12 +306,12 @@ workspace {
                 routing Direct
             }
             relationship "Relation: Synchronous" {
-                color #000000
+                color #FFFFFF
                 style Solid
                 routing Direct
             }
             relationship "Relation: Asynchronous" {
-                color #000000
+                color #FFFFFF
                 style Dashed
                 routing Direct
             }
