@@ -23,7 +23,7 @@ while IFS= read -r -d '' homework_dir; do
       "/workspace/$homework_dir/plantuml/"*.puml
   fi
 
-  workspace="$homework_dir/structurizr/workspace.dsl"
+  workspace="$homework_dir/structurizr/workspace.json"
   if [[ -f "$workspace" ]]; then
     mkdir -p ".cache/rendered/structurizr/$slug"
 
