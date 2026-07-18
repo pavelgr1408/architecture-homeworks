@@ -41,7 +41,7 @@ workspace {
                 description "Сервис ресторанов"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_restaurantDb "CRUD операции" "DB" {
+                this -> db_restaurantDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
             }
@@ -54,7 +54,7 @@ workspace {
                 description "Сервис управления меню"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_menuDb "CRUD операции" "DB" {
+                this -> db_menuDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
             }
@@ -67,7 +67,7 @@ workspace {
                 description "Акции, промокоды и скидки"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_loyaltyDb "CRUD операции" "DB" {
+                this -> db_loyaltyDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
             }
@@ -80,11 +80,11 @@ workspace {
                 description "Корзина и оформление заказа"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_ordersDb "CRUD операции" "DB" {
+                this -> db_ordersDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
-                cont_loyaltyApi -> this "Применение промокодов и скидок" "HTTP REST" {
-                    tags "Relation: Synchronous"
+                cont_loyaltyApi -> this "Применение промокодов и скидок" "Kafka" {
+                    tags "Relation: Asynchronous"
                 }
             }
             db_paymentsDb = container "payment-db" {
@@ -96,11 +96,11 @@ workspace {
                 description "Обработка платежей"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_paymentsDb "CRUD операции" "DB" {
+                this -> db_paymentsDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
-                cont_ordersApi -> this "Передача заказа на оплату" "HTTP REST" {
-                    tags "Relation: Synchronous"
+                cont_ordersApi -> this "Передача заказа на оплату" "Kafka" {
+                    tags "Relation: Asynchronous"
                 }
                 this -> sys_paymentGateway "Инициализация оплаты" "HTTP REST" {
                     tags "Relation: Synchronous"
@@ -118,7 +118,7 @@ workspace {
                 description "Интеграция доставки"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_deliveryDb "CRUD операции" "DB" {
+                this -> db_deliveryDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
                 cont_ordersApi -> this "Передача заказа на доставку" "HTTP REST" {
@@ -140,7 +140,7 @@ workspace {
                 description "Авторизация пользователей"
                 technology "Java, Spring Boot"
                 tags "Container: Backend Service"
-                this -> db_authDb "CRUD операции" "DB" {
+                this -> db_authDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
             }
@@ -169,11 +169,11 @@ workspace {
                 this -> cont_authApi "Авторизация" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
-                cont_mobileApp -> this "Использует" {
-                    tags "Relation: Uses"
+                cont_mobileApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
+                    tags "Relation: Synchronous"
                 }
-                cont_webApp -> this "Использует" {
-                    tags "Relation: Uses"
+                cont_webApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
+                    tags "Relation: Synchronous"
                 }
             }
         }
