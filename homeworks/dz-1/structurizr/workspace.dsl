@@ -9,13 +9,14 @@ workspace {
             description "Внешняя платежная система"
             tags "Context: External"
         }
-        sys_deliverySystem = softwareSystem "Система доставки" {
-            description "Внешняя система доставки"
+        sys_deliverySystem = softwareSystem "Курьерская система" {
+            description "Внешняя система доставки и оплаты мерчантов"
             tags "Context: External"
         }
         sys_orderSystem = softwareSystem "Система управления заказами" {
             description "Платформа управления заказами"
             tags "Context: Product"
+
             cont_mobileApp = container "mobile-app" {
                 description "Мобильное приложение клиента"
                 technology "Mobile Application"
@@ -83,9 +84,6 @@ workspace {
                 this -> db_ordersDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
-                cont_loyaltyApi -> this "Применение промокодов и скидок" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
             }
             db_paymentsDb = container "payment-db" {
                 description "Данные платежей"
@@ -99,10 +97,10 @@ workspace {
                 this -> db_paymentsDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
-                cont_ordersApi -> this "Передача заказа на оплату" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
                 this -> sys_paymentGateway "Инициализация оплаты" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> sys_paymentGateway "Запрос статуса оплаты" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
                 sys_paymentGateway -> this "Статус оплаты" "Webhook" {
@@ -121,13 +119,16 @@ workspace {
                 this -> db_deliveryDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
-                cont_ordersApi -> this "Передача заказа на доставку" "HTTP REST" {
-                    tags "Relation: Synchronous"
+                cont_ordersApi -> this "Передача заказа на доставку" "Kafka" {
+                    tags "Relation: Asynchronous"
                 }
                 this -> sys_deliverySystem "Поиск курьера" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
                 sys_deliverySystem -> this "Статус доставки" "Webhook" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_ordersApi "передача статуса доставки" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
             }
@@ -163,9 +164,6 @@ workspace {
                 this -> cont_paymentsApi "Оплата заказа" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
-                this -> cont_deliveryApi "Получение статуса доставки" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
                 this -> cont_authApi "Авторизация" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
@@ -174,6 +172,25 @@ workspace {
                 }
                 cont_webApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
                     tags "Relation: Synchronous"
+                }
+                this -> cont_deliveryApi "Получение информации о доставке/курьере" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+            }
+            cont_broker = container "kafka" {
+                description "Message Broker"
+                tags "Container: Message Broker"
+                cont_ordersApi -> this "produser. orders.state: Передача заказа" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_paymentsApi "consumer. orders.state: Получение заказа" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                cont_loyaltyApi -> this "produser. promotions.discount: Передача промо и акций" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_ordersApi "consumer. promotions.discount: Получение промо и акций" "Kafka" {
+                    tags "Relation: Asynchronous"
                 }
             }
         }
@@ -240,6 +257,8 @@ workspace {
                 background #87cefa
                 color #000000
                 shape Pipe
+                width 1500
+                height 200
                 description true
             }
             element "Container: Web GUI" {
