@@ -282,6 +282,21 @@ workspace {
                 this -> cont_deliveryApi "consumer.orders.payments.link: Получение платежной ссылки" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
+                this -> cont_deliveryApi "consumer.orders.state: Получение заказа для доставки" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                cont_deliveryApi -> this "produser.orders.delivery.status: Передача статуса доставки" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_ordersApi "consumer.orders.delivery.status: Получение статусов доставки" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                cont_deliveryApi -> this "produser.orders.status: Передача статуса заказа" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_notificationApi "consumer.orders.status: Получение статуса заказа" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
             }
         }
     }
