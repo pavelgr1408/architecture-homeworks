@@ -248,7 +248,7 @@ workspace {
             }
             cont_broker = container "kafka" {
                 description "Message Broker"
-                tags "Container: Message Broker"
+                tags "Container_vertically: Message Broker"
                 cont_ordersApi -> this "produser.orders.state: Передача заказа" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
@@ -364,6 +364,14 @@ workspace {
                 shape Pipe
                 width 3500
                 height 200
+                description true
+            }
+            element "Container_vertically: Message Broker" {
+                background #87cefa
+                color #000000
+                shape Cylinder
+                width 200
+                height 2000
                 description true
             }
             element "Container: Web GUI" {
