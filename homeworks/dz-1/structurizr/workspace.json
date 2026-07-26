@@ -1,443 +1,1406 @@
-workspace {
-
-    model {
-        user_client = person "Пользователь" {
-            description "Клиент мобильного и web приложения"
-            tags "Person: Client"
-        }
-        user_staff = person "Персонал" {
-            description "Персонал кафе"
-            tags "Person: Employee"
-        }
-        sys_paymentGateway = softwareSystem "Платежный шлюз" {
-            description "Внешняя платежная система"
-            tags "Context: External"
-        }
-        sys_FCM = softwareSystem "Firebase Cloud Messaging" {
-            description "Firebase Cloud Messaging"
-            tags "Context: External"
-        }
-        sys_apple = softwareSystem "Apple Push Notification service" {
-            description "Apple Push Notification service"
-            tags "Context: External"
-        }
-        sys_huawei = softwareSystem "Huawei Mobile Services" {
-            description "Huawei Mobile Services"
-            tags "Context: External"
-        }
-        sys_deliverySystem = softwareSystem "Курьерская система" {
-            description "Внешняя система доставки и оплаты мерчантов"
-            tags "Context: External"
-        }
-        sys_orderProductionSystem = softwareSystem "Система производства" {
-            description "Система производства/приготовления"
-            tags "Context: Common"
-        }
-        sys_orderSystem = softwareSystem "Система управления заказами" {
-            description "Платформа управления заказами"
-            tags "Context: Product"
-            cont_mobileAppleApp = container "mobile-app-apple" {
-                description "Мобильное приложение клиента apple"
-                technology "Swift"
-                tags "Container: Mobile GUI"
-                user_client -> this "Использует" {
-                    tags "Relation: Uses"
-                }
-                sys_apple -> this "Отправка push" {
-                    tags "Relation: Asynchronous"
-                }
-            }
-            cont_mobileAndroidApp = container "mobile-app-Android" {
-                description "Мобильное приложение клиента Android"
-                technology "Kotlin"
-                tags "Container: Mobile GUI"
-                user_client -> this "Использует" {
-                    tags "Relation: Uses"
-                }
-                sys_FCM -> this "Отправка push" {
-                    tags "Relation: Asynchronous"
-                }
-                sys_huawei -> this "Отправка push" {
-                    tags "Relation: Asynchronous"
-                }
-            }
-            cont_webApp = container "web-app" {
-                description "Web интерфейс клиента"
-                technology "Web Application"
-                tags "Container: Web GUI"
-                user_client -> this "Использует" {
-                    tags "Relation: Uses"
-                }
-            }
-            cont_webAppStaff = container "web-app-staff" {
-                description "Web интерфейс персонала"
-                technology "Web Application"
-                tags "Container: Web GUI"
-                user_staff -> this "Использует" {
-                    tags "Relation: Uses"
-                }
-            }
-            db_restaurantDb = container "restaurant-db" {
-                description "Данные ресторанов"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_restaurantApi = container "restaurant-service" {
-                description "Сервис ресторанов"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_restaurantDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            db_menuDb = container "menu-db" {
-                description "Данные меню"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_menuApi = container "menu-service" {
-                description "Сервис управления меню"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_menuDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            db_loyaltyDb = container "loyalty-db" {
-                description "Данные лояльности"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_loyaltyApi = container "loyalty-service" {
-                description "Акции, промокоды и скидки"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_loyaltyDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            db_ordersDb = container "orders-db" {
-                description "Данные заказов"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_ordersApi = container "orders-service" {
-                description "Корзина и оформление заказа"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_ordersDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            db_paymentsDb = container "payment-db" {
-                description "Данные платежей"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_paymentsApi = container "payment-service" {
-                description "Обработка платежей"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_paymentsDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_paymentGateway "Инициализация оплаты/получение платежной ссылки" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_paymentGateway "Запрос статуса оплаты" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                sys_paymentGateway -> this "Статус оплаты" "Webhook" {
-                    tags "Relation: Asynchronous"
-                }
-            }
-            db_deliveryDb = container "delivery-db" {
-                description "Данные доставки"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_deliveryApi = container "delivery-service" {
-                description "Интеграция доставки"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_deliveryDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_deliverySystem "Поиск курьера" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                sys_deliverySystem -> this "Статус доставки" "Webhook" {
-                    tags "Relation: Asynchronous"
-                }
-            }
-            db_authDb = container "auth-db" {
-                description "Пользователи"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_authApi = container "auth-service" {
-                description "Авторизация пользователей"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_authDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            db_notificationDb = container "notification-db" {
-                description "Данные уведомлений"
-                technology "PostgreSQL"
-                tags "Container: Database"
-            }
-            cont_notificationApi = container "notification-service" {
-                description "Сервис уведомлений"
-                technology "Java, Spring Boot"
-                tags "Container: Backend Service"
-                this -> db_notificationDb "CRUD операции" "JDBC" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_apple "Отправить уведомления на apple" "HTTP" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_FCM "Отправить уведомления на android" "HTTP" {
-                    tags "Relation: Synchronous"
-                }
-                this -> sys_huawei "Отправить уведомления на android-huawei" "HTTP" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            cont_apiGateway = container "api-gateway" {
-                description "Единая точка входа"
-                technology "API Gateway"
-                tags "Container: Backend Service"
-                this -> cont_restaurantApi "Получение ресторанов" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_menuApi "Получение меню" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_loyaltyApi "Получение акций" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_ordersApi "Создание заказа" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_paymentsApi "Оплата заказа" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_authApi "Авторизация" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_notificationApi "Получить разрешения и push-токен" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                cont_mobileAppleApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
-                    tags "Relation: Synchronous"
-                }
-                cont_mobileAndroidApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
-                    tags "Relation: Synchronous"
-                }
-                cont_webApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
-                    tags "Relation: Synchronous"
-                }
-                cont_webAppStaff -> this "Выполнить запрос персонала" "HTTPS REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_deliveryApi "Получение информации о доставке/курьере" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-            }
-            cont_broker = container "kafka" {
-                description "Message Broker"
-                tags "Container_vertically: Message Broker"
-                cont_ordersApi -> this "produser.orders.state: Передача заказа" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_paymentsApi "consumer.orders.state: Получение заказа" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                cont_paymentsApi -> this "produser.orders.payments.link: Передача платежной ссылки" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                cont_paymentsApi -> this "produser.orders.payments.status: Передать статус оплаты" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                cont_loyaltyApi -> this "produser.promotions.discount: Передача промо и акций" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_ordersApi "consumer.promotions.discount: Получение промо и акций" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> sys_orderProductionSystem "consumer.orders.state: Получение заказа на приготовление" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                sys_orderProductionSystem -> this "produser.orders.dish.status: Передача статусов блюд" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_ordersApi "consumer.orders.dish.status: Получение статусов блюд" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_ordersApi "consumer.orders.payments.status: Получение статусов оплаты" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_deliveryApi "consumer.orders.payments.link: Получение платежной ссылки" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_deliveryApi "consumer.orders.state: Получение заказа для доставки" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                cont_deliveryApi -> this "produser.orders.delivery.status: Передача статуса доставки" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_ordersApi "consumer.orders.delivery.status: Получение статусов доставки" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                cont_deliveryApi -> this "produser.orders.status: Передача статуса заказа" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-                this -> cont_notificationApi "consumer.orders.status: Получение статуса заказа" "Kafka" {
-                    tags "Relation: Asynchronous"
-                }
-            }
-        }
-    }
-
-    views {
-        theme default
-        systemLandscape {
-            include *
-        }
-        container sys_orderSystem {
-            include *
-        }
-        styles {
-            element "Person: Client" {
-                background #8fbc8f
-                color #000000
-                shape Person
-                description true
-            }
-            element "Person: Employee" {
-                background #87cefa
-                color #000000
-                shape Person
-                description true
-            }
-            element "Person: Partner" {
-                background #d3d3d3
-                color #000000
-                shape Person
-                description true
-            }
-            element "Context: Product" {
-                background #87cefa
-                color #000000
-                shape Box
-                description true
-            }
-            element "Context: External" {
-                background #c0c0c0
-                color #000000
-                shape Box
-                description true
-            }
-            element "Context: Common" {
-                background #b0c4de
-                color #000000
-                shape Box
-                description true
-            }
-            element "Container: Backend Service" {
-                background #87cefa
-                color #000000
-                shape Hexagon
-                description true
-            }
-            element "Container: Database" {
-                background #87cefa
-                color #000000
-                shape Cylinder
-                description true
-            }
-            element "Container: Message Broker" {
-                background #87cefa
-                color #000000
-                shape Pipe
-                width 3500
-                height 200
-                description true
-            }
-            element "Container_vertically: Message Broker" {
-                background #87cefa
-                color #000000
-                shape Cylinder
-                width 200
-                height 2000
-                description true
-            }
-            element "Container: Web GUI" {
-                background #87cefa
-                color #000000
-                shape WebBrowser
-                description true
-            }
-            element "Container: Mobile GUI" {
-                background #87cefa
-                color #000000
-                shape MobileDevicePortrait
-                description true
-            }
-            element "Container: Target" {
-                background #008080
-                color #ffffff
-            }
-            element "Container: Deprecated" {
-                background #666633
-                color #c0c0c0
-            }
-            element "Container: Abstract" {
-                background #c0c0c0
-                color #000000
-                shape Folder
-                opacity 50
-            }
-            relationship "Relation: Based On" {
-                color #a9a9a9
-                style Solid
-                routing Direct
-                opacity 50
-            }
-            relationship "Relation: Deleted" {
-                color #ff0000
-            }
-            relationship "Relation: Added" {
-                color #008000
-            }
-            relationship "Relation: Deprecated" {
-                color #666633
-            }
-            relationship "Relation: Target" {
-                color #008080
-            }
-            relationship "Relation: Uses" {
-                color #FFFFFF
-                style Dashed
-                routing Direct
-            }
-            relationship "Relation: Synchronous" {
-                color #FFFFFF
-                style Solid
-                routing Direct
-            }
-            relationship "Relation: Asynchronous" {
-                color #FFFFFF
-                style Dashed
-                routing Direct
-            }
-            relationship "Relation: Interacts" {
-                color #808080
-                style Dashed
-                routing Direct
-            }
-        }
-    }
+{
+  "configuration" : { },
+  "description" : "Description",
+  "documentation" : { },
+  "id" : 1,
+  "lastModifiedAgent" : "structurizr/diagrams/5cd196e0-76c8-4131-98fe-f4f4dd608e79",
+  "lastModifiedDate" : "2026-07-26T13:33:52Z",
+  "lastModifiedUser" : "889688970",
+  "model" : {
+    "people" : [ {
+      "description" : "Клиент мобильного и web приложения",
+      "id" : "1",
+      "name" : "Пользователь",
+      "properties" : {
+        "structurizr.dsl.identifier" : "user_client"
+      },
+      "relationships" : [ {
+        "description" : "Использует",
+        "destinationId" : "10",
+        "id" : "11",
+        "sourceId" : "1",
+        "tags" : "Relationship,Relation: Uses"
+      }, {
+        "description" : "Использует",
+        "destinationId" : "9",
+        "id" : "12",
+        "linkedRelationshipId" : "11",
+        "sourceId" : "1"
+      }, {
+        "description" : "Использует",
+        "destinationId" : "15",
+        "id" : "16",
+        "sourceId" : "1",
+        "tags" : "Relationship,Relation: Uses"
+      }, {
+        "description" : "Использует",
+        "destinationId" : "21",
+        "id" : "22",
+        "sourceId" : "1",
+        "tags" : "Relationship,Relation: Uses"
+      } ],
+      "tags" : "Element,Person,Person: Client"
+    }, {
+      "description" : "Персонал кафе",
+      "id" : "2",
+      "name" : "Персонал",
+      "properties" : {
+        "structurizr.dsl.identifier" : "user_staff"
+      },
+      "relationships" : [ {
+        "description" : "Использует",
+        "destinationId" : "23",
+        "id" : "24",
+        "sourceId" : "2",
+        "tags" : "Relationship,Relation: Uses"
+      }, {
+        "description" : "Использует",
+        "destinationId" : "9",
+        "id" : "25",
+        "linkedRelationshipId" : "24",
+        "sourceId" : "2"
+      } ],
+      "tags" : "Element,Person,Person: Employee"
+    } ],
+    "softwareSystems" : [ {
+      "description" : "Внешняя платежная система",
+      "documentation" : { },
+      "id" : "3",
+      "name" : "Платежный шлюз",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_paymentGateway"
+      },
+      "relationships" : [ {
+        "description" : "Статус оплаты",
+        "destinationId" : "39",
+        "id" : "44",
+        "sourceId" : "3",
+        "tags" : "Relationship,Relation: Asynchronous",
+        "technology" : "Webhook"
+      }, {
+        "description" : "Статус оплаты",
+        "destinationId" : "9",
+        "id" : "45",
+        "linkedRelationshipId" : "44",
+        "sourceId" : "3",
+        "technology" : "Webhook"
+      } ],
+      "tags" : "Element,Software System,Context: External"
+    }, {
+      "description" : "Firebase Cloud Messaging",
+      "documentation" : { },
+      "id" : "4",
+      "name" : "Firebase Cloud Messaging",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_FCM"
+      },
+      "relationships" : [ {
+        "description" : "Отправка push",
+        "destinationId" : "15",
+        "id" : "17",
+        "sourceId" : "4",
+        "tags" : "Relationship,Relation: Asynchronous"
+      }, {
+        "description" : "Отправка push",
+        "destinationId" : "9",
+        "id" : "18",
+        "linkedRelationshipId" : "17",
+        "sourceId" : "4"
+      } ],
+      "tags" : "Element,Software System,Context: External"
+    }, {
+      "description" : "Apple Push Notification service",
+      "documentation" : { },
+      "id" : "5",
+      "name" : "Apple Push Notification service",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_apple"
+      },
+      "relationships" : [ {
+        "description" : "Отправка push",
+        "destinationId" : "10",
+        "id" : "13",
+        "sourceId" : "5",
+        "tags" : "Relationship,Relation: Asynchronous"
+      }, {
+        "description" : "Отправка push",
+        "destinationId" : "9",
+        "id" : "14",
+        "linkedRelationshipId" : "13",
+        "sourceId" : "5"
+      } ],
+      "tags" : "Element,Software System,Context: External"
+    }, {
+      "description" : "Huawei Mobile Services",
+      "documentation" : { },
+      "id" : "6",
+      "name" : "Huawei Mobile Services",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_huawei"
+      },
+      "relationships" : [ {
+        "description" : "Отправка push",
+        "destinationId" : "15",
+        "id" : "19",
+        "sourceId" : "6",
+        "tags" : "Relationship,Relation: Asynchronous"
+      }, {
+        "description" : "Отправка push",
+        "destinationId" : "9",
+        "id" : "20",
+        "linkedRelationshipId" : "19",
+        "sourceId" : "6"
+      } ],
+      "tags" : "Element,Software System,Context: External"
+    }, {
+      "description" : "Внешняя система доставки и оплаты мерчантов",
+      "documentation" : { },
+      "id" : "7",
+      "name" : "Курьерская система",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_deliverySystem"
+      },
+      "relationships" : [ {
+        "description" : "Статус доставки",
+        "destinationId" : "47",
+        "id" : "51",
+        "sourceId" : "7",
+        "tags" : "Relationship,Relation: Asynchronous",
+        "technology" : "Webhook"
+      }, {
+        "description" : "Статус доставки",
+        "destinationId" : "9",
+        "id" : "52",
+        "linkedRelationshipId" : "51",
+        "sourceId" : "7",
+        "technology" : "Webhook"
+      } ],
+      "tags" : "Element,Software System,Context: External"
+    }, {
+      "description" : "Система производства/приготовления",
+      "documentation" : { },
+      "id" : "8",
+      "name" : "Система производства",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_orderProductionSystem"
+      },
+      "relationships" : [ {
+        "description" : "produser.orders.dish.status: Передача статусов блюд",
+        "destinationId" : "78",
+        "id" : "87",
+        "sourceId" : "8",
+        "tags" : "Relationship,Relation: Asynchronous",
+        "technology" : "Kafka"
+      }, {
+        "description" : "produser.orders.dish.status: Передача статусов блюд",
+        "destinationId" : "9",
+        "id" : "88",
+        "linkedRelationshipId" : "87",
+        "sourceId" : "8",
+        "technology" : "Kafka"
+      } ],
+      "tags" : "Element,Software System,Context: Common"
+    }, {
+      "containers" : [ {
+        "description" : "Мобильное приложение клиента apple",
+        "documentation" : { },
+        "id" : "10",
+        "name" : "mobile-app-apple",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_mobileAppleApp"
+        },
+        "relationships" : [ {
+          "description" : "Выполнить запрос пользователя",
+          "destinationId" : "65",
+          "id" : "73",
+          "sourceId" : "10",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTPS REST"
+        } ],
+        "tags" : "Element,Container,Container: Mobile GUI",
+        "technology" : "Swift"
+      }, {
+        "description" : "Мобильное приложение клиента Android",
+        "documentation" : { },
+        "id" : "15",
+        "name" : "mobile-app-Android",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_mobileAndroidApp"
+        },
+        "relationships" : [ {
+          "description" : "Выполнить запрос пользователя",
+          "destinationId" : "65",
+          "id" : "74",
+          "sourceId" : "15",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTPS REST"
+        } ],
+        "tags" : "Element,Container,Container: Mobile GUI",
+        "technology" : "Kotlin"
+      }, {
+        "description" : "Web интерфейс клиента",
+        "documentation" : { },
+        "id" : "21",
+        "name" : "web-app",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_webApp"
+        },
+        "relationships" : [ {
+          "description" : "Выполнить запрос пользователя",
+          "destinationId" : "65",
+          "id" : "75",
+          "sourceId" : "21",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTPS REST"
+        } ],
+        "tags" : "Element,Container,Container: Web GUI",
+        "technology" : "Web Application"
+      }, {
+        "description" : "Web интерфейс персонала",
+        "documentation" : { },
+        "id" : "23",
+        "name" : "web-app-staff",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_webAppStaff"
+        },
+        "relationships" : [ {
+          "description" : "Выполнить запрос персонала",
+          "destinationId" : "65",
+          "id" : "76",
+          "sourceId" : "23",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTPS REST"
+        } ],
+        "tags" : "Element,Container,Container: Web GUI",
+        "technology" : "Web Application"
+      }, {
+        "description" : "Данные ресторанов",
+        "documentation" : { },
+        "id" : "26",
+        "name" : "restaurant-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_restaurantDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Сервис ресторанов",
+        "documentation" : { },
+        "id" : "27",
+        "name" : "restaurant-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_restaurantApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "26",
+          "id" : "28",
+          "sourceId" : "27",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные меню",
+        "documentation" : { },
+        "id" : "29",
+        "name" : "menu-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_menuDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Сервис управления меню",
+        "documentation" : { },
+        "id" : "30",
+        "name" : "menu-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_menuApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "29",
+          "id" : "31",
+          "sourceId" : "30",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные лояльности",
+        "documentation" : { },
+        "id" : "32",
+        "name" : "loyalty-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_loyaltyDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Акции, промокоды и скидки",
+        "documentation" : { },
+        "id" : "33",
+        "name" : "loyalty-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_loyaltyApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "32",
+          "id" : "34",
+          "sourceId" : "33",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        }, {
+          "description" : "produser.promotions.discount: Передача промо и акций",
+          "destinationId" : "78",
+          "id" : "83",
+          "sourceId" : "33",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные заказов",
+        "documentation" : { },
+        "id" : "35",
+        "name" : "orders-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_ordersDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Корзина и оформление заказа",
+        "documentation" : { },
+        "id" : "36",
+        "name" : "orders-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_ordersApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "35",
+          "id" : "37",
+          "sourceId" : "36",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        }, {
+          "description" : "produser.orders.state: Передача заказа",
+          "destinationId" : "78",
+          "id" : "79",
+          "sourceId" : "36",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные платежей",
+        "documentation" : { },
+        "id" : "38",
+        "name" : "payment-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_paymentsDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Обработка платежей",
+        "documentation" : { },
+        "id" : "39",
+        "name" : "payment-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_paymentsApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "38",
+          "id" : "40",
+          "sourceId" : "39",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        }, {
+          "description" : "Инициализация оплаты/получение платежной ссылки",
+          "destinationId" : "3",
+          "id" : "41",
+          "sourceId" : "39",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Запрос статуса оплаты",
+          "destinationId" : "3",
+          "id" : "43",
+          "sourceId" : "39",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "produser.orders.payments.link: Передача платежной ссылки",
+          "destinationId" : "78",
+          "id" : "81",
+          "sourceId" : "39",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "produser.orders.payments.status: Передать статус оплаты",
+          "destinationId" : "78",
+          "id" : "82",
+          "sourceId" : "39",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные доставки",
+        "documentation" : { },
+        "id" : "46",
+        "name" : "delivery-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_deliveryDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Интеграция доставки",
+        "documentation" : { },
+        "id" : "47",
+        "name" : "delivery-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_deliveryApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "46",
+          "id" : "48",
+          "sourceId" : "47",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        }, {
+          "description" : "Поиск курьера",
+          "destinationId" : "7",
+          "id" : "49",
+          "sourceId" : "47",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "produser.orders.delivery.status: Передача статуса доставки",
+          "destinationId" : "78",
+          "id" : "93",
+          "sourceId" : "47",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "produser.orders.status: Передача статуса заказа",
+          "destinationId" : "78",
+          "id" : "95",
+          "sourceId" : "47",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Пользователи",
+        "documentation" : { },
+        "id" : "53",
+        "name" : "auth-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_authDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Авторизация пользователей",
+        "documentation" : { },
+        "id" : "54",
+        "name" : "auth-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_authApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "53",
+          "id" : "55",
+          "sourceId" : "54",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Данные уведомлений",
+        "documentation" : { },
+        "id" : "56",
+        "name" : "notification-db",
+        "properties" : {
+          "structurizr.dsl.identifier" : "db_notificationDb"
+        },
+        "tags" : "Element,Container,Container: Database",
+        "technology" : "PostgreSQL"
+      }, {
+        "description" : "Сервис уведомлений",
+        "documentation" : { },
+        "id" : "57",
+        "name" : "notification-service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_notificationApi"
+        },
+        "relationships" : [ {
+          "description" : "CRUD операции",
+          "destinationId" : "56",
+          "id" : "58",
+          "sourceId" : "57",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "JDBC"
+        }, {
+          "description" : "Отправить уведомления на apple",
+          "destinationId" : "5",
+          "id" : "59",
+          "sourceId" : "57",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP"
+        }, {
+          "description" : "Отправить уведомления на android",
+          "destinationId" : "4",
+          "id" : "61",
+          "sourceId" : "57",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP"
+        }, {
+          "description" : "Отправить уведомления на android-huawei",
+          "destinationId" : "6",
+          "id" : "63",
+          "sourceId" : "57",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "Java, Spring Boot"
+      }, {
+        "description" : "Единая точка входа",
+        "documentation" : { },
+        "id" : "65",
+        "name" : "api-gateway",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_apiGateway"
+        },
+        "relationships" : [ {
+          "description" : "Получение ресторанов",
+          "destinationId" : "27",
+          "id" : "66",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Получение меню",
+          "destinationId" : "30",
+          "id" : "67",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Получение акций",
+          "destinationId" : "33",
+          "id" : "68",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Создание заказа",
+          "destinationId" : "36",
+          "id" : "69",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Оплата заказа",
+          "destinationId" : "39",
+          "id" : "70",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Авторизация",
+          "destinationId" : "54",
+          "id" : "71",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Получить разрешения и push-токен",
+          "destinationId" : "57",
+          "id" : "72",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        }, {
+          "description" : "Получение информации о доставке/курьере",
+          "destinationId" : "47",
+          "id" : "77",
+          "sourceId" : "65",
+          "tags" : "Relationship,Relation: Synchronous",
+          "technology" : "HTTP REST"
+        } ],
+        "tags" : "Element,Container,Container: Backend Service",
+        "technology" : "API Gateway"
+      }, {
+        "description" : "Message Broker",
+        "documentation" : { },
+        "id" : "78",
+        "name" : "kafka",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cont_broker"
+        },
+        "relationships" : [ {
+          "description" : "consumer.orders.state: Получение заказа",
+          "destinationId" : "39",
+          "id" : "80",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.promotions.discount: Получение промо и акций",
+          "destinationId" : "36",
+          "id" : "84",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.state: Получение заказа на приготовление",
+          "destinationId" : "8",
+          "id" : "85",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.dish.status: Получение статусов блюд",
+          "destinationId" : "36",
+          "id" : "89",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.payments.status: Получение статусов оплаты",
+          "destinationId" : "36",
+          "id" : "90",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.payments.link: Получение платежной ссылки",
+          "destinationId" : "47",
+          "id" : "91",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.state: Получение заказа для доставки",
+          "destinationId" : "47",
+          "id" : "92",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.delivery.status: Получение статусов доставки",
+          "destinationId" : "36",
+          "id" : "94",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        }, {
+          "description" : "consumer.orders.status: Получение статуса заказа",
+          "destinationId" : "57",
+          "id" : "96",
+          "sourceId" : "78",
+          "tags" : "Relationship,Relation: Asynchronous",
+          "technology" : "Kafka"
+        } ],
+        "tags" : "Element,Container,Container_vertically: Message Broker"
+      } ],
+      "description" : "Платформа управления заказами",
+      "documentation" : { },
+      "id" : "9",
+      "name" : "Система управления заказами",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sys_orderSystem"
+      },
+      "relationships" : [ {
+        "description" : "Инициализация оплаты/получение платежной ссылки",
+        "destinationId" : "3",
+        "id" : "42",
+        "linkedRelationshipId" : "41",
+        "sourceId" : "9",
+        "technology" : "HTTP REST"
+      }, {
+        "description" : "Поиск курьера",
+        "destinationId" : "7",
+        "id" : "50",
+        "linkedRelationshipId" : "49",
+        "sourceId" : "9",
+        "technology" : "HTTP REST"
+      }, {
+        "description" : "Отправить уведомления на apple",
+        "destinationId" : "5",
+        "id" : "60",
+        "linkedRelationshipId" : "59",
+        "sourceId" : "9",
+        "technology" : "HTTP"
+      }, {
+        "description" : "Отправить уведомления на android",
+        "destinationId" : "4",
+        "id" : "62",
+        "linkedRelationshipId" : "61",
+        "sourceId" : "9",
+        "technology" : "HTTP"
+      }, {
+        "description" : "Отправить уведомления на android-huawei",
+        "destinationId" : "6",
+        "id" : "64",
+        "linkedRelationshipId" : "63",
+        "sourceId" : "9",
+        "technology" : "HTTP"
+      }, {
+        "description" : "consumer.orders.state: Получение заказа на приготовление",
+        "destinationId" : "8",
+        "id" : "86",
+        "linkedRelationshipId" : "85",
+        "sourceId" : "9",
+        "technology" : "Kafka"
+      } ],
+      "tags" : "Element,Software System,Context: Product"
+    } ]
+  },
+  "name" : "Name",
+  "properties" : {
+    "structurizr.inspection.info" : "0",
+    "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.error" : "20",
+    "structurizr.inspection.warning" : "0",
+    "structurizr.dsl" : "d29ya3NwYWNlIHsKCiAgICBtb2RlbCB7CiAgICAgICAgdXNlcl9jbGllbnQgPSBwZXJzb24gItCf0L7Qu9GM0LfQvtCy0LDRgtC10LvRjCIgewogICAgICAgICAgICBkZXNjcmlwdGlvbiAi0JrQu9C40LXQvdGCINC80L7QsdC40LvRjNC90L7Qs9C+INC4IHdlYiDQv9GA0LjQu9C+0LbQtdC90LjRjyIKICAgICAgICAgICAgdGFncyAiUGVyc29uOiBDbGllbnQiCiAgICAgICAgfQogICAgICAgIHVzZXJfc3RhZmYgPSBwZXJzb24gItCf0LXRgNGB0L7QvdCw0LsiIHsKICAgICAgICAgICAgZGVzY3JpcHRpb24gItCf0LXRgNGB0L7QvdCw0Lsg0LrQsNGE0LUiCiAgICAgICAgICAgIHRhZ3MgIlBlcnNvbjogRW1wbG95ZWUiCiAgICAgICAgfQogICAgICAgIHN5c19wYXltZW50R2F0ZXdheSA9IHNvZnR3YXJlU3lzdGVtICLQn9C70LDRgtC10LbQvdGL0Lkg0YjQu9GO0LciIHsKICAgICAgICAgICAgZGVzY3JpcHRpb24gItCS0L3QtdGI0L3Rj9GPINC/0LvQsNGC0LXQttC90LDRjyDRgdC40YHRgtC10LzQsCIKICAgICAgICAgICAgdGFncyAiQ29udGV4dDogRXh0ZXJuYWwiCiAgICAgICAgfQogICAgICAgIHN5c19GQ00gPSBzb2Z0d2FyZVN5c3RlbSAiRmlyZWJhc2UgQ2xvdWQgTWVzc2FnaW5nIiB7CiAgICAgICAgICAgIGRlc2NyaXB0aW9uICJGaXJlYmFzZSBDbG91ZCBNZXNzYWdpbmciCiAgICAgICAgICAgIHRhZ3MgIkNvbnRleHQ6IEV4dGVybmFsIgogICAgICAgIH0KICAgICAgICBzeXNfYXBwbGUgPSBzb2Z0d2FyZVN5c3RlbSAiQXBwbGUgUHVzaCBOb3RpZmljYXRpb24gc2VydmljZSIgewogICAgICAgICAgICBkZXNjcmlwdGlvbiAiQXBwbGUgUHVzaCBOb3RpZmljYXRpb24gc2VydmljZSIKICAgICAgICAgICAgdGFncyAiQ29udGV4dDogRXh0ZXJuYWwiCiAgICAgICAgfQogICAgICAgIHN5c19odWF3ZWkgPSBzb2Z0d2FyZVN5c3RlbSAiSHVhd2VpIE1vYmlsZSBTZXJ2aWNlcyIgewogICAgICAgICAgICBkZXNjcmlwdGlvbiAiSHVhd2VpIE1vYmlsZSBTZXJ2aWNlcyIKICAgICAgICAgICAgdGFncyAiQ29udGV4dDogRXh0ZXJuYWwiCiAgICAgICAgfQogICAgICAgIHN5c19kZWxpdmVyeVN5c3RlbSA9IHNvZnR3YXJlU3lzdGVtICLQmtGD0YDRjNC10YDRgdC60LDRjyDRgdC40YHRgtC10LzQsCIgewogICAgICAgICAgICBkZXNjcmlwdGlvbiAi0JLQvdC10YjQvdGP0Y8g0YHQuNGB0YLQtdC80LAg0LTQvtGB0YLQsNCy0LrQuCDQuCDQvtC/0LvQsNGC0Ysg0LzQtdGA0YfQsNC90YLQvtCyIgogICAgICAgICAgICB0YWdzICJDb250ZXh0OiBFeHRlcm5hbCIKICAgICAgICB9CiAgICAgICAgc3lzX29yZGVyUHJvZHVjdGlvblN5c3RlbSA9IHNvZnR3YXJlU3lzdGVtICLQodC40YHRgtC10LzQsCDQv9GA0L7QuNC30LLQvtC00YHRgtCy0LAiIHsKICAgICAgICAgICAgZGVzY3JpcHRpb24gItCh0LjRgdGC0LXQvNCwINC/0YDQvtC40LfQstC+0LTRgdGC0LLQsC/Qv9GA0LjQs9C+0YLQvtCy0LvQtdC90LjRjyIKICAgICAgICAgICAgdGFncyAiQ29udGV4dDogQ29tbW9uIgogICAgICAgIH0KICAgICAgICBzeXNfb3JkZXJTeXN0ZW0gPSBzb2Z0d2FyZVN5c3RlbSAi0KHQuNGB0YLQtdC80LAg0YPQv9GA0LDQstC70LXQvdC40Y8g0LfQsNC60LDQt9Cw0LzQuCIgewogICAgICAgICAgICBkZXNjcmlwdGlvbiAi0J/Qu9Cw0YLRhNC+0YDQvNCwINGD0L/RgNCw0LLQu9C10L3QuNGPINC30LDQutCw0LfQsNC80LgiCiAgICAgICAgICAgIHRhZ3MgIkNvbnRleHQ6IFByb2R1Y3QiCiAgICAgICAgICAgIGNvbnRfbW9iaWxlQXBwbGVBcHAgPSBjb250YWluZXIgIm1vYmlsZS1hcHAtYXBwbGUiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQnNC+0LHQuNC70YzQvdC+0LUg0L/RgNC40LvQvtC20LXQvdC40LUg0LrQu9C40LXQvdGC0LAgYXBwbGUiCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJTd2lmdCIKICAgICAgICAgICAgICAgIHRhZ3MgIkNvbnRhaW5lcjogTW9iaWxlIEdVSSIKICAgICAgICAgICAgICAgIHVzZXJfY2xpZW50IC0+IHRoaXMgItCY0YHQv9C+0LvRjNC30YPQtdGCIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFVzZXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBzeXNfYXBwbGUgLT4gdGhpcyAi0J7RgtC/0YDQsNCy0LrQsCBwdXNoIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBjb250X21vYmlsZUFuZHJvaWRBcHAgPSBjb250YWluZXIgIm1vYmlsZS1hcHAtQW5kcm9pZCIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCc0L7QsdC40LvRjNC90L7QtSDQv9GA0LjQu9C+0LbQtdC90LjQtSDQutC70LjQtdC90YLQsCBBbmRyb2lkIgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiS290bGluIgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBNb2JpbGUgR1VJIgogICAgICAgICAgICAgICAgdXNlcl9jbGllbnQgLT4gdGhpcyAi0JjRgdC/0L7Qu9GM0LfRg9C10YIiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogVXNlcyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHN5c19GQ00gLT4gdGhpcyAi0J7RgtC/0YDQsNCy0LrQsCBwdXNoIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHN5c19odWF3ZWkgLT4gdGhpcyAi0J7RgtC/0YDQsNCy0LrQsCBwdXNoIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBjb250X3dlYkFwcCA9IGNvbnRhaW5lciAid2ViLWFwcCIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gIldlYiDQuNC90YLQtdGA0YTQtdC50YEg0LrQu9C40LXQvdGC0LAiCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJXZWIgQXBwbGljYXRpb24iCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IFdlYiBHVUkiCiAgICAgICAgICAgICAgICB1c2VyX2NsaWVudCAtPiB0aGlzICLQmNGB0L/QvtC70YzQt9GD0LXRgiIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBVc2VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfd2ViQXBwU3RhZmYgPSBjb250YWluZXIgIndlYi1hcHAtc3RhZmYiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICJXZWIg0LjQvdGC0LXRgNGE0LXQudGBINC/0LXRgNGB0L7QvdCw0LvQsCIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIldlYiBBcHBsaWNhdGlvbiIKICAgICAgICAgICAgICAgIHRhZ3MgIkNvbnRhaW5lcjogV2ViIEdVSSIKICAgICAgICAgICAgICAgIHVzZXJfc3RhZmYgLT4gdGhpcyAi0JjRgdC/0L7Qu9GM0LfRg9C10YIiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogVXNlcyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBkYl9yZXN0YXVyYW50RGIgPSBjb250YWluZXIgInJlc3RhdXJhbnQtZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0YDQtdGB0YLQvtGA0LDQvdC+0LIiCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJQb3N0Z3JlU1FMIgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBEYXRhYmFzZSIKICAgICAgICAgICAgfQogICAgICAgICAgICBjb250X3Jlc3RhdXJhbnRBcGkgPSBjb250YWluZXIgInJlc3RhdXJhbnQtc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCh0LXRgNCy0LjRgSDRgNC10YHRgtC+0YDQsNC90L7QsiIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIkphdmEsIFNwcmluZyBCb290IgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBCYWNrZW5kIFNlcnZpY2UiCiAgICAgICAgICAgICAgICB0aGlzIC0+IGRiX3Jlc3RhdXJhbnREYiAiQ1JVRCDQvtC/0LXRgNCw0YbQuNC4IiAiSkRCQyIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBkYl9tZW51RGIgPSBjb250YWluZXIgIm1lbnUtZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0LzQtdC90Y4iCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJQb3N0Z3JlU1FMIgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBEYXRhYmFzZSIKICAgICAgICAgICAgfQogICAgICAgICAgICBjb250X21lbnVBcGkgPSBjb250YWluZXIgIm1lbnUtc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCh0LXRgNCy0LjRgSDRg9C/0YDQsNCy0LvQtdC90LjRjyDQvNC10L3RjiIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIkphdmEsIFNwcmluZyBCb290IgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBCYWNrZW5kIFNlcnZpY2UiCiAgICAgICAgICAgICAgICB0aGlzIC0+IGRiX21lbnVEYiAiQ1JVRCDQvtC/0LXRgNCw0YbQuNC4IiAiSkRCQyIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBkYl9sb3lhbHR5RGIgPSBjb250YWluZXIgImxveWFsdHktZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0LvQvtGP0LvRjNC90L7RgdGC0LgiCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJQb3N0Z3JlU1FMIgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBEYXRhYmFzZSIKICAgICAgICAgICAgfQogICAgICAgICAgICBjb250X2xveWFsdHlBcGkgPSBjb250YWluZXIgImxveWFsdHktc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCQ0LrRhtC40LgsINC/0YDQvtC80L7QutC+0LTRiyDQuCDRgdC60LjQtNC60LgiCiAgICAgICAgICAgICAgICB0ZWNobm9sb2d5ICJKYXZhLCBTcHJpbmcgQm9vdCIKICAgICAgICAgICAgICAgIHRhZ3MgIkNvbnRhaW5lcjogQmFja2VuZCBTZXJ2aWNlIgogICAgICAgICAgICAgICAgdGhpcyAtPiBkYl9sb3lhbHR5RGIgIkNSVUQg0L7Qv9C10YDQsNGG0LjQuCIgIkpEQkMiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgZGJfb3JkZXJzRGIgPSBjb250YWluZXIgIm9yZGVycy1kYiIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCU0LDQvdC90YvQtSDQt9Cw0LrQsNC30L7QsiIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIlBvc3RncmVTUUwiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IERhdGFiYXNlIgogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfb3JkZXJzQXBpID0gY29udGFpbmVyICJvcmRlcnMtc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCa0L7RgNC30LjQvdCwINC4INC+0YTQvtGA0LzQu9C10L3QuNC1INC30LDQutCw0LfQsCIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIkphdmEsIFNwcmluZyBCb290IgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyOiBCYWNrZW5kIFNlcnZpY2UiCiAgICAgICAgICAgICAgICB0aGlzIC0+IGRiX29yZGVyc0RiICJDUlVEINC+0L/QtdGA0LDRhtC40LgiICJKREJDIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIGRiX3BheW1lbnRzRGIgPSBjb250YWluZXIgInBheW1lbnQtZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0L/Qu9Cw0YLQtdC20LXQuSIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIlBvc3RncmVTUUwiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IERhdGFiYXNlIgogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfcGF5bWVudHNBcGkgPSBjb250YWluZXIgInBheW1lbnQtc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCe0LHRgNCw0LHQvtGC0LrQsCDQv9C70LDRgtC10LbQtdC5IgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiSmF2YSwgU3ByaW5nIEJvb3QiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IEJhY2tlbmQgU2VydmljZSIKICAgICAgICAgICAgICAgIHRoaXMgLT4gZGJfcGF5bWVudHNEYiAiQ1JVRCDQvtC/0LXRgNCw0YbQuNC4IiAiSkRCQyIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHRoaXMgLT4gc3lzX3BheW1lbnRHYXRld2F5ICLQmNC90LjRhtC40LDQu9C40LfQsNGG0LjRjyDQvtC/0LvQsNGC0Ysv0L/QvtC70YPRh9C10L3QuNC1INC/0LvQsNGC0LXQttC90L7QuSDRgdGB0YvQu9C60LgiICJIVFRQIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IHN5c19wYXltZW50R2F0ZXdheSAi0JfQsNC/0YDQvtGBINGB0YLQsNGC0YPRgdCwINC+0L/Qu9Cw0YLRiyIgIkhUVFAgUkVTVCIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHN5c19wYXltZW50R2F0ZXdheSAtPiB0aGlzICLQodGC0LDRgtGD0YEg0L7Qv9C70LDRgtGLIiAiV2ViaG9vayIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgZGJfZGVsaXZlcnlEYiA9IGNvbnRhaW5lciAiZGVsaXZlcnktZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0LTQvtGB0YLQsNCy0LrQuCIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIlBvc3RncmVTUUwiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IERhdGFiYXNlIgogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfZGVsaXZlcnlBcGkgPSBjb250YWluZXIgImRlbGl2ZXJ5LXNlcnZpY2UiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQmNC90YLQtdCz0YDQsNGG0LjRjyDQtNC+0YHRgtCw0LLQutC4IgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiSmF2YSwgU3ByaW5nIEJvb3QiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IEJhY2tlbmQgU2VydmljZSIKICAgICAgICAgICAgICAgIHRoaXMgLT4gZGJfZGVsaXZlcnlEYiAiQ1JVRCDQvtC/0LXRgNCw0YbQuNC4IiAiSkRCQyIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHRoaXMgLT4gc3lzX2RlbGl2ZXJ5U3lzdGVtICLQn9C+0LjRgdC6INC60YPRgNGM0LXRgNCwIiAiSFRUUCBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgc3lzX2RlbGl2ZXJ5U3lzdGVtIC0+IHRoaXMgItCh0YLQsNGC0YPRgSDQtNC+0YHRgtCw0LLQutC4IiAiV2ViaG9vayIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgZGJfYXV0aERiID0gY29udGFpbmVyICJhdXRoLWRiIiB7CiAgICAgICAgICAgICAgICBkZXNjcmlwdGlvbiAi0J/QvtC70YzQt9C+0LLQsNGC0LXQu9C4IgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiUG9zdGdyZVNRTCIKICAgICAgICAgICAgICAgIHRhZ3MgIkNvbnRhaW5lcjogRGF0YWJhc2UiCiAgICAgICAgICAgIH0KICAgICAgICAgICAgY29udF9hdXRoQXBpID0gY29udGFpbmVyICJhdXRoLXNlcnZpY2UiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQkNCy0YLQvtGA0LjQt9Cw0YbQuNGPINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvQtdC5IgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiSmF2YSwgU3ByaW5nIEJvb3QiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IEJhY2tlbmQgU2VydmljZSIKICAgICAgICAgICAgICAgIHRoaXMgLT4gZGJfYXV0aERiICJDUlVEINC+0L/QtdGA0LDRhtC40LgiICJKREJDIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIGRiX25vdGlmaWNhdGlvbkRiID0gY29udGFpbmVyICJub3RpZmljYXRpb24tZGIiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQlNCw0L3QvdGL0LUg0YPQstC10LTQvtC80LvQtdC90LjQuSIKICAgICAgICAgICAgICAgIHRlY2hub2xvZ3kgIlBvc3RncmVTUUwiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IERhdGFiYXNlIgogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfbm90aWZpY2F0aW9uQXBpID0gY29udGFpbmVyICJub3RpZmljYXRpb24tc2VydmljZSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gItCh0LXRgNCy0LjRgSDRg9Cy0LXQtNC+0LzQu9C10L3QuNC5IgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiSmF2YSwgU3ByaW5nIEJvb3QiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IEJhY2tlbmQgU2VydmljZSIKICAgICAgICAgICAgICAgIHRoaXMgLT4gZGJfbm90aWZpY2F0aW9uRGIgIkNSVUQg0L7Qv9C10YDQsNGG0LjQuCIgIkpEQkMiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IHN5c19hcHBsZSAi0J7RgtC/0YDQsNCy0LjRgtGMINGD0LLQtdC00L7QvNC70LXQvdC40Y8g0L3QsCBhcHBsZSIgIkhUVFAiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IHN5c19GQ00gItCe0YLQv9GA0LDQstC40YLRjCDRg9Cy0LXQtNC+0LzQu9C10L3QuNGPINC90LAgYW5kcm9pZCIgIkhUVFAiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IHN5c19odWF3ZWkgItCe0YLQv9GA0LDQstC40YLRjCDRg9Cy0LXQtNC+0LzQu9C10L3QuNGPINC90LAgYW5kcm9pZC1odWF3ZWkiICJIVFRQIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfYXBpR2F0ZXdheSA9IGNvbnRhaW5lciAiYXBpLWdhdGV3YXkiIHsKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uICLQldC00LjQvdCw0Y8g0YLQvtGH0LrQsCDQstGF0L7QtNCwIgogICAgICAgICAgICAgICAgdGVjaG5vbG9neSAiQVBJIEdhdGV3YXkiCiAgICAgICAgICAgICAgICB0YWdzICJDb250YWluZXI6IEJhY2tlbmQgU2VydmljZSIKICAgICAgICAgICAgICAgIHRoaXMgLT4gY29udF9yZXN0YXVyYW50QXBpICLQn9C+0LvRg9GH0LXQvdC40LUg0YDQtdGB0YLQvtGA0LDQvdC+0LIiICJIVFRQIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfbWVudUFwaSAi0J/QvtC70YPRh9C10L3QuNC1INC80LXQvdGOIiAiSFRUUCBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBjb250X2xveWFsdHlBcGkgItCf0L7Qu9GD0YfQtdC90LjQtSDQsNC60YbQuNC5IiAiSFRUUCBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBjb250X29yZGVyc0FwaSAi0KHQvtC30LTQsNC90LjQtSDQt9Cw0LrQsNC30LAiICJIVFRQIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfcGF5bWVudHNBcGkgItCe0L/Qu9Cw0YLQsCDQt9Cw0LrQsNC30LAiICJIVFRQIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfYXV0aEFwaSAi0JDQstGC0L7RgNC40LfQsNGG0LjRjyIgIkhUVFAgUkVTVCIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBTeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHRoaXMgLT4gY29udF9ub3RpZmljYXRpb25BcGkgItCf0L7Qu9GD0YfQuNGC0Ywg0YDQsNC30YDQtdGI0LXQvdC40Y8g0LggcHVzaC3RgtC+0LrQtdC9IiAiSFRUUCBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgY29udF9tb2JpbGVBcHBsZUFwcCAtPiB0aGlzICLQktGL0L/QvtC70L3QuNGC0Ywg0LfQsNC/0YDQvtGBINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjyIgIkhUVFBTIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBjb250X21vYmlsZUFuZHJvaWRBcHAgLT4gdGhpcyAi0JLRi9C/0L7Qu9C90LjRgtGMINC30LDQv9GA0L7RgSDQv9C+0LvRjNC30L7QstCw0YLQtdC70Y8iICJIVFRQUyBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgY29udF93ZWJBcHAgLT4gdGhpcyAi0JLRi9C/0L7Qu9C90LjRgtGMINC30LDQv9GA0L7RgSDQv9C+0LvRjNC30L7QstCw0YLQtdC70Y8iICJIVFRQUyBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgY29udF93ZWJBcHBTdGFmZiAtPiB0aGlzICLQktGL0L/QvtC70L3QuNGC0Ywg0LfQsNC/0YDQvtGBINC/0LXRgNGB0L7QvdCw0LvQsCIgIkhUVFBTIFJFU1QiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogU3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfZGVsaXZlcnlBcGkgItCf0L7Qu9GD0YfQtdC90LjQtSDQuNC90YTQvtGA0LzQsNGG0LjQuCDQviDQtNC+0YHRgtCw0LLQutC1L9C60YPRgNGM0LXRgNC1IiAiSFRUUCBSRVNUIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IFN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIGNvbnRfYnJva2VyID0gY29udGFpbmVyICJrYWZrYSIgewogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gIk1lc3NhZ2UgQnJva2VyIgogICAgICAgICAgICAgICAgdGFncyAiQ29udGFpbmVyX3ZlcnRpY2FsbHk6IE1lc3NhZ2UgQnJva2VyIgogICAgICAgICAgICAgICAgY29udF9vcmRlcnNBcGkgLT4gdGhpcyAicHJvZHVzZXIub3JkZXJzLnN0YXRlOiDQn9C10YDQtdC00LDRh9CwINC30LDQutCw0LfQsCIgIkthZmthIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHRoaXMgLT4gY29udF9wYXltZW50c0FwaSAiY29uc3VtZXIub3JkZXJzLnN0YXRlOiDQn9C+0LvRg9GH0LXQvdC40LUg0LfQsNC60LDQt9CwIiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgY29udF9wYXltZW50c0FwaSAtPiB0aGlzICJwcm9kdXNlci5vcmRlcnMucGF5bWVudHMubGluazog0J/QtdGA0LXQtNCw0YfQsCDQv9C70LDRgtC10LbQvdC+0Lkg0YHRgdGL0LvQutC4IiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgY29udF9wYXltZW50c0FwaSAtPiB0aGlzICJwcm9kdXNlci5vcmRlcnMucGF5bWVudHMuc3RhdHVzOiDQn9C10YDQtdC00LDRgtGMINGB0YLQsNGC0YPRgSDQvtC/0LvQsNGC0YsiICJLYWZrYSIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBjb250X2xveWFsdHlBcGkgLT4gdGhpcyAicHJvZHVzZXIucHJvbW90aW9ucy5kaXNjb3VudDog0J/QtdGA0LXQtNCw0YfQsCDQv9GA0L7QvNC+INC4INCw0LrRhtC40LkiICJLYWZrYSIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfb3JkZXJzQXBpICJjb25zdW1lci5wcm9tb3Rpb25zLmRpc2NvdW50OiDQn9C+0LvRg9GH0LXQvdC40LUg0L/RgNC+0LzQviDQuCDQsNC60YbQuNC5IiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBzeXNfb3JkZXJQcm9kdWN0aW9uU3lzdGVtICJjb25zdW1lci5vcmRlcnMuc3RhdGU6INCf0L7Qu9GD0YfQtdC90LjQtSDQt9Cw0LrQsNC30LAg0L3QsCDQv9GA0LjQs9C+0YLQvtCy0LvQtdC90LjQtSIgIkthZmthIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIHN5c19vcmRlclByb2R1Y3Rpb25TeXN0ZW0gLT4gdGhpcyAicHJvZHVzZXIub3JkZXJzLmRpc2guc3RhdHVzOiDQn9C10YDQtdC00LDRh9CwINGB0YLQsNGC0YPRgdC+0LIg0LHQu9GO0LQiICJLYWZrYSIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfb3JkZXJzQXBpICJjb25zdW1lci5vcmRlcnMuZGlzaC5zdGF0dXM6INCf0L7Qu9GD0YfQtdC90LjQtSDRgdGC0LDRgtGD0YHQvtCyINCx0LvRjtC0IiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBjb250X29yZGVyc0FwaSAiY29uc3VtZXIub3JkZXJzLnBheW1lbnRzLnN0YXR1czog0J/QvtC70YPRh9C10L3QuNC1INGB0YLQsNGC0YPRgdC+0LIg0L7Qv9C70LDRgtGLIiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBjb250X2RlbGl2ZXJ5QXBpICJjb25zdW1lci5vcmRlcnMucGF5bWVudHMubGluazog0J/QvtC70YPRh9C10L3QuNC1INC/0LvQsNGC0LXQttC90L7QuSDRgdGB0YvQu9C60LgiICJLYWZrYSIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfZGVsaXZlcnlBcGkgImNvbnN1bWVyLm9yZGVycy5zdGF0ZTog0J/QvtC70YPRh9C10L3QuNC1INC30LDQutCw0LfQsCDQtNC70Y8g0LTQvtGB0YLQsNCy0LrQuCIgIkthZmthIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGNvbnRfZGVsaXZlcnlBcGkgLT4gdGhpcyAicHJvZHVzZXIub3JkZXJzLmRlbGl2ZXJ5LnN0YXR1czog0J/QtdGA0LXQtNCw0YfQsCDRgdGC0LDRgtGD0YHQsCDQtNC+0YHRgtCw0LLQutC4IiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgdGhpcyAtPiBjb250X29yZGVyc0FwaSAiY29uc3VtZXIub3JkZXJzLmRlbGl2ZXJ5LnN0YXR1czog0J/QvtC70YPRh9C10L3QuNC1INGB0YLQsNGC0YPRgdC+0LIg0LTQvtGB0YLQsNCy0LrQuCIgIkthZmthIiB7CiAgICAgICAgICAgICAgICAgICAgdGFncyAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGNvbnRfZGVsaXZlcnlBcGkgLT4gdGhpcyAicHJvZHVzZXIub3JkZXJzLnN0YXR1czog0J/QtdGA0LXQtNCw0YfQsCDRgdGC0LDRgtGD0YHQsCDQt9Cw0LrQsNC30LAiICJLYWZrYSIgewogICAgICAgICAgICAgICAgICAgIHRhZ3MgIlJlbGF0aW9uOiBBc3luY2hyb25vdXMiCiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB0aGlzIC0+IGNvbnRfbm90aWZpY2F0aW9uQXBpICJjb25zdW1lci5vcmRlcnMuc3RhdHVzOiDQn9C+0LvRg9GH0LXQvdC40LUg0YHRgtCw0YLRg9GB0LAg0LfQsNC60LDQt9CwIiAiS2Fma2EiIHsKICAgICAgICAgICAgICAgICAgICB0YWdzICJSZWxhdGlvbjogQXN5bmNocm9ub3VzIgogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQoKICAgIHZpZXdzIHsKICAgICAgICB0aGVtZSBkZWZhdWx0CiAgICAgICAgc3lzdGVtTGFuZHNjYXBlIHsKICAgICAgICAgICAgaW5jbHVkZSAqCiAgICAgICAgfQogICAgICAgIGNvbnRhaW5lciBzeXNfb3JkZXJTeXN0ZW0gewogICAgICAgICAgICBpbmNsdWRlICoKICAgICAgICB9CiAgICAgICAgc3R5bGVzIHsKICAgICAgICAgICAgZWxlbWVudCAiUGVyc29uOiBDbGllbnQiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzhmYmM4ZgogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgUGVyc29uCiAgICAgICAgICAgICAgICBkZXNjcmlwdGlvbiB0cnVlCiAgICAgICAgICAgIH0KICAgICAgICAgICAgZWxlbWVudCAiUGVyc29uOiBFbXBsb3llZSIgewogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjODdjZWZhCiAgICAgICAgICAgICAgICBjb2xvciAjMDAwMDAwCiAgICAgICAgICAgICAgICBzaGFwZSBQZXJzb24KICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJQZXJzb246IFBhcnRuZXIiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgI2QzZDNkMwogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgUGVyc29uCiAgICAgICAgICAgICAgICBkZXNjcmlwdGlvbiB0cnVlCiAgICAgICAgICAgIH0KICAgICAgICAgICAgZWxlbWVudCAiQ29udGV4dDogUHJvZHVjdCIgewogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjODdjZWZhCiAgICAgICAgICAgICAgICBjb2xvciAjMDAwMDAwCiAgICAgICAgICAgICAgICBzaGFwZSBCb3gKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250ZXh0OiBFeHRlcm5hbCIgewogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjYzBjMGMwCiAgICAgICAgICAgICAgICBjb2xvciAjMDAwMDAwCiAgICAgICAgICAgICAgICBzaGFwZSBCb3gKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250ZXh0OiBDb21tb24iIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgI2IwYzRkZQogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgQm94CiAgICAgICAgICAgICAgICBkZXNjcmlwdGlvbiB0cnVlCiAgICAgICAgICAgIH0KICAgICAgICAgICAgZWxlbWVudCAiQ29udGFpbmVyOiBCYWNrZW5kIFNlcnZpY2UiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzg3Y2VmYQogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgSGV4YWdvbgogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gdHJ1ZQogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkNvbnRhaW5lcjogRGF0YWJhc2UiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzg3Y2VmYQogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgQ3lsaW5kZXIKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250YWluZXI6IE1lc3NhZ2UgQnJva2VyIiB7CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICM4N2NlZmEKICAgICAgICAgICAgICAgIGNvbG9yICMwMDAwMDAKICAgICAgICAgICAgICAgIHNoYXBlIFBpcGUKICAgICAgICAgICAgICAgIHdpZHRoIDM1MDAKICAgICAgICAgICAgICAgIGhlaWdodCAyMDAKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250YWluZXJfdmVydGljYWxseTogTWVzc2FnZSBCcm9rZXIiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzg3Y2VmYQogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgQ3lsaW5kZXIKICAgICAgICAgICAgICAgIHdpZHRoIDIwMAogICAgICAgICAgICAgICAgaGVpZ2h0IDIwMDAKICAgICAgICAgICAgICAgIGRlc2NyaXB0aW9uIHRydWUKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250YWluZXI6IFdlYiBHVUkiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzg3Y2VmYQogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgV2ViQnJvd3NlcgogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gdHJ1ZQogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkNvbnRhaW5lcjogTW9iaWxlIEdVSSIgewogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjODdjZWZhCiAgICAgICAgICAgICAgICBjb2xvciAjMDAwMDAwCiAgICAgICAgICAgICAgICBzaGFwZSBNb2JpbGVEZXZpY2VQb3J0cmFpdAogICAgICAgICAgICAgICAgZGVzY3JpcHRpb24gdHJ1ZQogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkNvbnRhaW5lcjogVGFyZ2V0IiB7CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICMwMDgwODAKICAgICAgICAgICAgICAgIGNvbG9yICNmZmZmZmYKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb250YWluZXI6IERlcHJlY2F0ZWQiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzY2NjYzMwogICAgICAgICAgICAgICAgY29sb3IgI2MwYzBjMAogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkNvbnRhaW5lcjogQWJzdHJhY3QiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgI2MwYzBjMAogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICAgICAgc2hhcGUgRm9sZGVyCiAgICAgICAgICAgICAgICBvcGFjaXR5IDUwCiAgICAgICAgICAgIH0KICAgICAgICAgICAgcmVsYXRpb25zaGlwICJSZWxhdGlvbjogQmFzZWQgT24iIHsKICAgICAgICAgICAgICAgIGNvbG9yICNhOWE5YTkKICAgICAgICAgICAgICAgIHN0eWxlIFNvbGlkCiAgICAgICAgICAgICAgICByb3V0aW5nIERpcmVjdAogICAgICAgICAgICAgICAgb3BhY2l0eSA1MAogICAgICAgICAgICB9CiAgICAgICAgICAgIHJlbGF0aW9uc2hpcCAiUmVsYXRpb246IERlbGV0ZWQiIHsKICAgICAgICAgICAgICAgIGNvbG9yICNmZjAwMDAKICAgICAgICAgICAgfQogICAgICAgICAgICByZWxhdGlvbnNoaXAgIlJlbGF0aW9uOiBBZGRlZCIgewogICAgICAgICAgICAgICAgY29sb3IgIzAwODAwMAogICAgICAgICAgICB9CiAgICAgICAgICAgIHJlbGF0aW9uc2hpcCAiUmVsYXRpb246IERlcHJlY2F0ZWQiIHsKICAgICAgICAgICAgICAgIGNvbG9yICM2NjY2MzMKICAgICAgICAgICAgfQogICAgICAgICAgICByZWxhdGlvbnNoaXAgIlJlbGF0aW9uOiBUYXJnZXQiIHsKICAgICAgICAgICAgICAgIGNvbG9yICMwMDgwODAKICAgICAgICAgICAgfQogICAgICAgICAgICByZWxhdGlvbnNoaXAgIlJlbGF0aW9uOiBVc2VzIiB7CiAgICAgICAgICAgICAgICBjb2xvciAjRkZGRkZGCiAgICAgICAgICAgICAgICBzdHlsZSBEYXNoZWQKICAgICAgICAgICAgICAgIHJvdXRpbmcgRGlyZWN0CiAgICAgICAgICAgIH0KICAgICAgICAgICAgcmVsYXRpb25zaGlwICJSZWxhdGlvbjogU3luY2hyb25vdXMiIHsKICAgICAgICAgICAgICAgIGNvbG9yICNGRkZGRkYKICAgICAgICAgICAgICAgIHN0eWxlIFNvbGlkCiAgICAgICAgICAgICAgICByb3V0aW5nIERpcmVjdAogICAgICAgICAgICB9CiAgICAgICAgICAgIHJlbGF0aW9uc2hpcCAiUmVsYXRpb246IEFzeW5jaHJvbm91cyIgewogICAgICAgICAgICAgICAgY29sb3IgI0ZGRkZGRgogICAgICAgICAgICAgICAgc3R5bGUgRGFzaGVkCiAgICAgICAgICAgICAgICByb3V0aW5nIERpcmVjdAogICAgICAgICAgICB9CiAgICAgICAgICAgIHJlbGF0aW9uc2hpcCAiUmVsYXRpb246IEludGVyYWN0cyIgewogICAgICAgICAgICAgICAgY29sb3IgIzgwODA4MAogICAgICAgICAgICAgICAgc3R5bGUgRGFzaGVkCiAgICAgICAgICAgICAgICByb3V0aW5nIERpcmVjdAogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQp9"
+  },
+  "views" : {
+    "configuration" : {
+      "lastSavedView" : "Container-001",
+      "metadataSymbols" : "SquareBrackets",
+      "styles" : {
+        "elements" : [ {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "height" : 2000,
+          "shape" : "Cylinder",
+          "tag" : "Container_vertically: Message Broker",
+          "width" : 200
+        }, {
+          "background" : "#c0c0c0",
+          "color" : "#000000",
+          "opacity" : 50,
+          "shape" : "Folder",
+          "tag" : "Container: Abstract"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Hexagon",
+          "tag" : "Container: Backend Service"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Cylinder",
+          "tag" : "Container: Database"
+        }, {
+          "background" : "#666633",
+          "color" : "#c0c0c0",
+          "tag" : "Container: Deprecated"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "height" : 200,
+          "shape" : "Pipe",
+          "tag" : "Container: Message Broker",
+          "width" : 3500
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "MobileDevicePortrait",
+          "tag" : "Container: Mobile GUI"
+        }, {
+          "background" : "#008080",
+          "color" : "#ffffff",
+          "tag" : "Container: Target"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "WebBrowser",
+          "tag" : "Container: Web GUI"
+        }, {
+          "background" : "#b0c4de",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Box",
+          "tag" : "Context: Common"
+        }, {
+          "background" : "#c0c0c0",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Box",
+          "tag" : "Context: External"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Box",
+          "tag" : "Context: Product"
+        }, {
+          "background" : "#8fbc8f",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Person",
+          "tag" : "Person: Client"
+        }, {
+          "background" : "#87cefa",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Person",
+          "tag" : "Person: Employee"
+        }, {
+          "background" : "#d3d3d3",
+          "color" : "#000000",
+          "description" : true,
+          "shape" : "Person",
+          "tag" : "Person: Partner"
+        } ],
+        "relationships" : [ {
+          "color" : "#008000",
+          "tag" : "Relation: Added"
+        }, {
+          "color" : "#ffffff",
+          "routing" : "Direct",
+          "style" : "Dashed",
+          "tag" : "Relation: Asynchronous"
+        }, {
+          "color" : "#a9a9a9",
+          "opacity" : 50,
+          "routing" : "Direct",
+          "style" : "Solid",
+          "tag" : "Relation: Based On"
+        }, {
+          "color" : "#ff0000",
+          "tag" : "Relation: Deleted"
+        }, {
+          "color" : "#666633",
+          "tag" : "Relation: Deprecated"
+        }, {
+          "color" : "#808080",
+          "routing" : "Direct",
+          "style" : "Dashed",
+          "tag" : "Relation: Interacts"
+        }, {
+          "color" : "#ffffff",
+          "routing" : "Direct",
+          "style" : "Solid",
+          "tag" : "Relation: Synchronous"
+        }, {
+          "color" : "#008080",
+          "tag" : "Relation: Target"
+        }, {
+          "color" : "#ffffff",
+          "routing" : "Direct",
+          "style" : "Dashed",
+          "tag" : "Relation: Uses"
+        } ]
+      },
+      "terminology" : { },
+      "themes" : [ "https://static.structurizr.com/themes/default/theme.json" ]
+    },
+    "containerViews" : [ {
+      "dimensions" : {
+        "height" : 5185,
+        "width" : 7996
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 3016,
+        "y" : 224
+      }, {
+        "id" : "2",
+        "x" : 4320,
+        "y" : 255
+      }, {
+        "id" : "3",
+        "x" : 7171,
+        "y" : 3659
+      }, {
+        "id" : "4",
+        "x" : 551,
+        "y" : 3639
+      }, {
+        "id" : "5",
+        "x" : 556,
+        "y" : 3984
+      }, {
+        "id" : "6",
+        "x" : 551,
+        "y" : 3294
+      }, {
+        "id" : "7",
+        "x" : 7146,
+        "y" : 2464
+      }, {
+        "id" : "8",
+        "x" : 5351,
+        "y" : 4644
+      }, {
+        "id" : "10",
+        "x" : 3631,
+        "y" : 814
+      }, {
+        "id" : "15",
+        "x" : 2516,
+        "y" : 829
+      }, {
+        "id" : "21",
+        "x" : 2986,
+        "y" : 919
+      }, {
+        "id" : "23",
+        "x" : 4290,
+        "y" : 895
+      }, {
+        "id" : "26",
+        "x" : 1136,
+        "y" : 3054
+      }, {
+        "id" : "27",
+        "x" : 1891,
+        "y" : 3009
+      }, {
+        "id" : "29",
+        "x" : 1136,
+        "y" : 1834
+      }, {
+        "id" : "30",
+        "x" : 1901,
+        "y" : 1769
+      }, {
+        "id" : "32",
+        "x" : 3745,
+        "y" : 3385
+      }, {
+        "id" : "33",
+        "x" : 2956,
+        "y" : 3339
+      }, {
+        "id" : "35",
+        "x" : 3320,
+        "y" : 2735
+      }, {
+        "id" : "36",
+        "x" : 4161,
+        "y" : 2689
+      }, {
+        "id" : "38",
+        "x" : 6301,
+        "y" : 4184
+      }, {
+        "id" : "39",
+        "x" : 6296,
+        "y" : 3629
+      }, {
+        "id" : "46",
+        "x" : 6271,
+        "y" : 2204
+      }, {
+        "id" : "47",
+        "x" : 6276,
+        "y" : 2759
+      }, {
+        "id" : "53",
+        "x" : 1126,
+        "y" : 2434
+      }, {
+        "id" : "54",
+        "x" : 1886,
+        "y" : 2374
+      }, {
+        "id" : "56",
+        "x" : 2541,
+        "y" : 3729
+      }, {
+        "id" : "57",
+        "x" : 1871,
+        "y" : 3689
+      }, {
+        "id" : "65",
+        "x" : 2996,
+        "y" : 1534
+      }, {
+        "id" : "78",
+        "x" : 5476,
+        "y" : 2219
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "generatedKey" : true,
+      "key" : "Container-001",
+      "name" : "Container View: Система управления заказами",
+      "order" : 2,
+      "relationships" : [ {
+        "id" : "11"
+      }, {
+        "id" : "13",
+        "vertices" : [ {
+          "x" : 281,
+          "y" : 4134
+        }, {
+          "x" : 281,
+          "y" : 159
+        }, {
+          "x" : 3781,
+          "y" : 159
+        } ]
+      }, {
+        "id" : "16"
+      }, {
+        "id" : "17",
+        "vertices" : [ {
+          "x" : 431,
+          "y" : 3789
+        }, {
+          "x" : 431,
+          "y" : 964
+        }, {
+          "x" : 2511,
+          "y" : 964
+        } ]
+      }, {
+        "id" : "19",
+        "vertices" : [ {
+          "x" : 776,
+          "y" : 1169
+        }, {
+          "x" : 2511,
+          "y" : 1144
+        } ]
+      }, {
+        "id" : "22"
+      }, {
+        "id" : "24"
+      }, {
+        "id" : "28"
+      }, {
+        "id" : "31"
+      }, {
+        "id" : "34"
+      }, {
+        "id" : "37"
+      }, {
+        "id" : "40"
+      }, {
+        "id" : "41"
+      }, {
+        "id" : "43",
+        "vertices" : [ {
+          "x" : 6945,
+          "y" : 3985
+        } ]
+      }, {
+        "id" : "44",
+        "vertices" : [ {
+          "x" : 6965,
+          "y" : 3665
+        } ]
+      }, {
+        "id" : "48"
+      }, {
+        "id" : "49",
+        "vertices" : [ {
+          "x" : 6941,
+          "y" : 2819
+        } ]
+      }, {
+        "id" : "51",
+        "vertices" : [ {
+          "x" : 6946,
+          "y" : 2499
+        } ]
+      }, {
+        "id" : "55"
+      }, {
+        "id" : "58"
+      }, {
+        "id" : "59"
+      }, {
+        "id" : "61"
+      }, {
+        "id" : "63"
+      }, {
+        "id" : "66"
+      }, {
+        "id" : "67"
+      }, {
+        "id" : "68"
+      }, {
+        "id" : "69"
+      }, {
+        "id" : "70",
+        "vertices" : [ {
+          "x" : 7796,
+          "y" : 1728
+        }, {
+          "x" : 7796,
+          "y" : 3004
+        } ]
+      }, {
+        "id" : "71"
+      }, {
+        "id" : "72"
+      }, {
+        "id" : "73"
+      }, {
+        "id" : "74"
+      }, {
+        "id" : "75"
+      }, {
+        "id" : "76"
+      }, {
+        "id" : "77",
+        "vertices" : [ {
+          "x" : 5971,
+          "y" : 2129
+        } ]
+      }, {
+        "id" : "79",
+        "vertices" : [ {
+          "x" : 5476,
+          "y" : 2883
+        } ]
+      }, {
+        "id" : "80",
+        "vertices" : [ {
+          "x" : 5676,
+          "y" : 3624
+        }, {
+          "x" : 6321,
+          "y" : 3624
+        } ]
+      }, {
+        "id" : "81",
+        "vertices" : [ {
+          "x" : 5676,
+          "y" : 3823
+        } ]
+      }, {
+        "id" : "82",
+        "vertices" : [ {
+          "x" : 6301,
+          "y" : 4049
+        }, {
+          "x" : 5676,
+          "y" : 4049
+        } ]
+      }, {
+        "id" : "83",
+        "vertices" : [ {
+          "x" : 3181,
+          "y" : 3899
+        }, {
+          "x" : 5476,
+          "y" : 3899
+        } ]
+      }, {
+        "id" : "84",
+        "vertices" : [ {
+          "x" : 5461,
+          "y" : 3219
+        }, {
+          "x" : 4536,
+          "y" : 3209
+        } ]
+      }, {
+        "id" : "85",
+        "vertices" : [ {
+          "x" : 5696,
+          "y" : 4439
+        } ]
+      }, {
+        "id" : "87",
+        "vertices" : [ {
+          "x" : 5456,
+          "y" : 4449
+        } ]
+      }, {
+        "id" : "89",
+        "vertices" : [ {
+          "x" : 5471,
+          "y" : 2509
+        }, {
+          "x" : 4531,
+          "y" : 2509
+        } ]
+      }, {
+        "id" : "90",
+        "vertices" : [ {
+          "x" : 5471,
+          "y" : 3404
+        }, {
+          "x" : 4386,
+          "y" : 3404
+        } ]
+      }, {
+        "id" : "91",
+        "vertices" : [ {
+          "x" : 5681,
+          "y" : 3064
+        }, {
+          "x" : 6271,
+          "y" : 3064
+        } ]
+      }, {
+        "id" : "92",
+        "vertices" : [ {
+          "x" : 5681,
+          "y" : 2879
+        }, {
+          "x" : 6226,
+          "y" : 2879
+        } ]
+      }, {
+        "id" : "93",
+        "vertices" : [ {
+          "x" : 6501,
+          "y" : 3219
+        } ]
+      }, {
+        "id" : "94",
+        "vertices" : [ {
+          "x" : 5476,
+          "y" : 2319
+        }, {
+          "x" : 4385,
+          "y" : 2319
+        } ]
+      }, {
+        "id" : "95",
+        "vertices" : [ {
+          "x" : 6121,
+          "y" : 2714
+        }, {
+          "x" : 5681,
+          "y" : 2714
+        } ]
+      }, {
+        "id" : "96",
+        "vertices" : [ {
+          "x" : 5476,
+          "y" : 4159
+        }, {
+          "x" : 2096,
+          "y" : 4159
+        } ]
+      } ],
+      "softwareSystemId" : "9"
+    } ],
+    "systemLandscapeViews" : [ {
+      "dimensions" : {
+        "height" : 2030,
+        "width" : 1714
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 325,
+        "y" : 295
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "3",
+        "x" : 1065,
+        "y" : 890
+      }, {
+        "id" : "4",
+        "x" : 275,
+        "y" : 1520
+      }, {
+        "id" : "5",
+        "x" : 289,
+        "y" : 894
+      }, {
+        "id" : "6",
+        "x" : 289,
+        "y" : 894
+      }, {
+        "id" : "7",
+        "x" : 275,
+        "y" : 1520
+      }, {
+        "id" : "8",
+        "x" : 289,
+        "y" : 894
+      }, {
+        "id" : "9",
+        "x" : 289,
+        "y" : 894
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "generatedKey" : true,
+      "key" : "SystemLandscape-001",
+      "name" : "System Landscape View",
+      "order" : 1,
+      "relationships" : [ {
+        "id" : "12"
+      }, {
+        "id" : "14"
+      }, {
+        "id" : "18"
+      }, {
+        "id" : "20"
+      }, {
+        "id" : "25"
+      }, {
+        "id" : "42",
+        "vertices" : [ {
+          "x" : 890,
+          "y" : 885
+        } ]
+      }, {
+        "id" : "45",
+        "vertices" : [ {
+          "x" : 885,
+          "y" : 1205
+        } ]
+      }, {
+        "id" : "50",
+        "vertices" : [ {
+          "x" : 335,
+          "y" : 1365
+        } ]
+      }, {
+        "id" : "52",
+        "vertices" : [ {
+          "x" : 660,
+          "y" : 1370
+        } ]
+      }, {
+        "id" : "60"
+      }, {
+        "id" : "62"
+      }, {
+        "id" : "64"
+      }, {
+        "id" : "86"
+      }, {
+        "id" : "88"
+      } ]
+    } ]
+  }
 }
