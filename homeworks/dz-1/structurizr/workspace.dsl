@@ -5,8 +5,16 @@ workspace {
             description "Клиент мобильного и web приложения"
             tags "Person: Client"
         }
-        user_staff = person "Персонал" {
-            description "Персонал кафе"
+        user_staff = person "Сотрудник кафе" {
+            description "Сотрудник кафе"
+            tags "Person: Employee"
+        }
+        user_staff2 = person "Владелец франшизы" {
+            description "Владелец франшизы"
+            tags "Person: Employee"
+        }
+        user_staff3 = person "Сотрудник головной компании" {
+            description "Сотрудник головной компании"
             tags "Person: Employee"
         }
         sys_paymentGateway = softwareSystem "Платежный шлюз" {
@@ -23,6 +31,10 @@ workspace {
         }
         sys_huawei = softwareSystem "Huawei Mobile Services" {
             description "Huawei Mobile Services"
+            tags "Context: External"
+        }
+        sys_posSystem = softwareSystem "Кассовая система" {
+            description "POS/касса ресторана: наличные, карта на терминале, фискализация"
             tags "Context: External"
         }
         sys_deliverySystem = softwareSystem "Курьерская система" {
@@ -74,6 +86,12 @@ workspace {
                 technology "Web Application"
                 tags "Container: Web GUI"
                 user_staff -> this "Использует" {
+                    tags "Relation: Uses"
+                }
+                user_staff2 -> this "Управляет локальными акциями" {
+                    tags "Relation: Uses"
+                }
+                user_staff3 -> this "Управления национальными акциями" {
                     tags "Relation: Uses"
                 }
             }
@@ -150,6 +168,12 @@ workspace {
                 sys_paymentGateway -> this "Статус оплаты" "Webhook" {
                     tags "Relation: Asynchronous"
                 }
+                this -> sys_posSystem "Инициализация оплаты на кассе/терминале" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                sys_posSystem -> this "Подтверждение оплаты при получении" "Webhook" {
+                    tags "Relation: Asynchronous"
+                }
             }
             db_deliveryDb = container "delivery-db" {
                 description "Данные доставки"
@@ -168,6 +192,12 @@ workspace {
                 }
                 sys_deliverySystem -> this "Статус доставки" "Webhook" {
                     tags "Relation: Asynchronous"
+                }
+                this -> sys_deliverySystem "Передать линк на оплату" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> sys_deliverySystem "Запросить статус" "HTTP REST" {
+                    tags "Relation: Synchronous"
                 }
             }
             db_authDb = container "auth-db" {
@@ -245,6 +275,9 @@ workspace {
                 this -> cont_deliveryApi "Получение информации о доставке/курьере" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
+                this -> cont_ordersApi "Поиск заказа и отметка выдачи (персонал)" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
             }
             cont_broker = container "kafka" {
                 description "Message Broker"
@@ -291,10 +324,19 @@ workspace {
                 this -> cont_ordersApi "consumer.orders.delivery.status: Получение статусов доставки" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
-                cont_deliveryApi -> this "produser.orders.status: Передача статуса заказа" "Kafka" {
+                cont_ordersApi -> this "produser.orders.status: Передача статуса заказа" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
                 this -> cont_notificationApi "consumer.orders.status: Получение статуса заказа" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                sys_orderProductionSystem -> this "produser.production.lead.time: Время загрузки производства блюд" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_ordersApi "consumer.production.lead.time: Время загрузки производства блюд" "Kafka" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> cont_paymentsApi "consumer.orders.status: Получение статуса заказа" "Kafka" {
                     tags "Relation: Asynchronous"
                 }
             }
