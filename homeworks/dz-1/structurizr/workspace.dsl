@@ -90,6 +90,9 @@ workspace {
                 user_client -> this "Использует" {
                     tags "Relation: Uses"
                 }
+                this -> sys_maps "Mapkit карт" "HTTP" {
+                    tags "Relation: Asynchronous"
+                }
             }
             cont_webAppStaff = container "web-app-staff" {
                 description "Web интерфейс персонала"
