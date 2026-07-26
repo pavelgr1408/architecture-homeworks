@@ -37,6 +37,10 @@ workspace {
             description "POS/касса ресторана: наличные, карта на терминале, фискализация"
             tags "Context: External"
         }
+        sys_maps = softwareSystem "Платформа карт. Яндекс-карты" {
+            description "латформа карт. Яндекс-карты"
+            tags "Context: External"
+        }
         sys_deliverySystem = softwareSystem "Курьерская система" {
             description "Внешняя система доставки и оплаты мерчантов"
             tags "Context: External"
@@ -58,6 +62,9 @@ workspace {
                 sys_apple -> this "Отправка push" {
                     tags "Relation: Asynchronous"
                 }
+                this -> sys_maps "Mapkit карт" "HTTP" {
+                    tags "Relation: Asynchronous"
+                }
             }
             cont_mobileAndroidApp = container "mobile-app-Android" {
                 description "Мобильное приложение клиента Android"
@@ -70,6 +77,9 @@ workspace {
                     tags "Relation: Asynchronous"
                 }
                 sys_huawei -> this "Отправка push" {
+                    tags "Relation: Asynchronous"
+                }
+                this -> sys_maps "Mapkit карт" "HTTP" {
                     tags "Relation: Asynchronous"
                 }
             }
@@ -180,6 +190,11 @@ workspace {
                 technology "PostgreSQL"
                 tags "Container: Database"
             }
+            db_deliveryRedis = container "delivery-Redis" {
+                description "Координаты курьера"
+                technology "Redis"
+                tags "Container: Database"
+            }
             cont_deliveryApi = container "delivery-service" {
                 description "Интеграция доставки"
                 technology "Java, Spring Boot"
@@ -187,7 +202,13 @@ workspace {
                 this -> db_deliveryDb "CRUD операции" "JDBC" {
                     tags "Relation: Synchronous"
                 }
+                this -> db_deliveryRedis "Запись координат курьера" "RESP" {
+                    tags "Relation: Synchronous"
+                }
                 this -> sys_deliverySystem "Поиск курьера" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> sys_deliverySystem "Получить координаты курьера (пулинг)" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
                 sys_deliverySystem -> this "Статус доставки" "Webhook" {
@@ -260,6 +281,15 @@ workspace {
                 this -> cont_notificationApi "Получить разрешения и push-токен" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
+                this -> cont_deliveryApi "Получение информации о доставке/курьере" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_deliveryApi "Получить координаты курьера (пулинг)" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
+                this -> cont_ordersApi "Поиск заказа и отметка выдачи (персонал)" "HTTP REST" {
+                    tags "Relation: Synchronous"
+                }
                 cont_mobileAppleApp -> this "Выполнить запрос пользователя" "HTTPS REST" {
                     tags "Relation: Synchronous"
                 }
@@ -270,12 +300,6 @@ workspace {
                     tags "Relation: Synchronous"
                 }
                 cont_webAppStaff -> this "Выполнить запрос персонала" "HTTPS REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_deliveryApi "Получение информации о доставке/курьере" "HTTP REST" {
-                    tags "Relation: Synchronous"
-                }
-                this -> cont_ordersApi "Поиск заказа и отметка выдачи (персонал)" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
             }
