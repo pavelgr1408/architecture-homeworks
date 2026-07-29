@@ -1,0 +1,54 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-01 «Ознакомиться с акционными и специальными предложениями»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Client -> App: Открыть раздел акций / меню ресторана
+App -> GW: GET /promotions (регион, ресторан) [HTTPS REST]
+GW -> Auth: Проверить сессию
+Auth --> GW: OK
+GW -> LoySvc: Получить действующие предложения
+LoySvc -> LoyDb: SELECT акции [JDBC]
+LoyDb --> LoySvc: Общенациональные и локальные акции
+LoySvc -> LoySvc: Объединить нац.+локальные,\nотсеять недействующие
+LoySvc --> GW: Актуальные предложения (условия, сроки)
+GW --> App: Перечень акций
+App --> Client: Показать акции; кнопка перехода к оформлению
+ 
+alt A1. Просмотр без выбранного ресторана
+  LoySvc --> App: Только общенациональные + предложение выбрать ресторан
+end
+ 
+note over LoySvc, OrdSvc: Реплика акций для расчёта корзины:\nloyalty-service --> kafka(promotions.discount) --> orders-service
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+@enduml
