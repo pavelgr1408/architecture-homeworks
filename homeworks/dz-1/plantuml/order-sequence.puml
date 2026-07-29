@@ -1,17 +1,50 @@
 @startuml
-title Создание заказа
-
-actor Клиент
-participant "API Gateway" as Gateway
-participant "Order Service" as Orders
-database PostgreSQL as DB
-queue Kafka
-
-Клиент -> Gateway: POST /orders
-Gateway -> Orders: createOrder(command)
-Orders -> DB: INSERT order
-DB --> Orders: orderId
-Orders -> Kafka: publish OrderCreated
-Orders --> Gateway: 201 Created
-Gateway --> Клиент: Order
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-04 «Оплатить в ресторане при получении» (специализация UC-PAY-01)
+actor "Клиент" as Client
+actor "Сотрудник\nкафе" as Staff
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "payment-service" as PaySvc
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+participant "Кассовая\nсистема" as POS
+ 
+note over OrdSvc: Заказ (в т. ч. факсовый, UC-ORD-02) создан и ждёт получения
+Client -> Staff: Назвать номер заказа и перейти к оплате
+Staff -> StaffApp: Инициировать оплату
+StaffApp -> GW: Запрос оплаты [HTTPS REST]
+GW -> PaySvc: Инициировать оплату на кассе
+PaySvc -> POS: Инициализация оплаты на кассе/терминале [HTTP REST]
+note over POS: Даже наличная оплата проходит через кассу\nс терминальным чеком (Д6)
+POS --> PaySvc: Подтверждение оплаты при получении [Webhook]
+PaySvc --> Kafka: produser.orders.payments.status
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Зафиксировать оплату, разрешить выдачу
+ 
+ref over Staff, OrdSvc: UC-RCV-03 «Получить заказ в кафе» — отметка выдачи
+Staff -> Client: Выдать заказ
+ 
 @enduml
