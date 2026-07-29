@@ -1,157 +1,1563 @@
-openapi: 3.0.3
+openapi: 3.1.0
+
 info:
-  title: Order Training API
+  title: Информационная система «Заказ еды» — REST API
   version: 1.0.0
-  description: Учебный REST API для создания и просмотра заказов.
+  summary: >-
+    Единая спецификация синхронных REST-контрактов микросервисов национальной
+    сети сэндвич-ресторанов (кейс BLT).
+  description: |
+    Документ описывает **REST API каждого микросервиса** платформы «Заказ еды».
+  contact:
+    name: Команда платформы «Заказ еды»
+    email: platform@blt.example
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+
 servers:
-  - url: https://api.example.test/v1
+  - url: https://api.blt.example/v1
+    description: Единая точка входа (api-gateway), production
+  - url: https://api.staging.blt.example/v1
+    description: Единая точка входа (api-gateway), staging
+
+security:
+  - bearerAuth: []
+
 tags:
-  - name: Orders
+  - name: api-gateway
+    description: >-
+      Единая точка входа для клиентских и персональных запросов. Проверяет токен
+      через auth-service и маршрутизирует вызовы в продуктовые сервисы. Собственных
+      бизнес-ресурсов не имеет; операции ниже сгруппированы по сервисам-владельцам,
+      а публичные из них доступны клиенту именно через gateway.
+  - name: auth-service
+    description: >-
+      Авторизация пользователей и проверка полномочий (клиент, сотрудник кафе,
+      владелец франшизы, сотрудник головной компании). Хранилище — auth-db.
+  - name: restaurant-service
+    description: >-
+      Поиск и выбор ресторанов сети с учётом режима работы и признака доставки.
+      Хранилище — restaurant-db. (UC-FND-01)
+  - name: menu-service
+    description: >-
+      Меню и актуальные цены ресторана, проверка доступности позиций.
+      Хранилище — menu-db. (UC-ORD-01/02/03)
+  - name: loyalty-service
+    description: >-
+      Акции, промокоды и скидки: просмотр действующих предложений клиентом и
+      управление акциями персоналом (локальные / общенациональные). Публикация
+      в orders-service идёт через Kafka. Хранилище — loyalty-db.
+      (UC-PRM-01/02/03/04)
+  - name: orders-service
+    description: >-
+      Корзина, оформление и жизненный цикл заказа: расчёт суммы с учётом акций,
+      выбор способа получения, оценка времени готовности (ETA), поиск заказа и
+      отметка выдачи персоналом. Хранилище — orders-db. (UC-ORD-*, UC-RCV-*)
+  - name: payment-service
+    description: >-
+      Обработка платежей: способы оплаты, инициализация онлайн-оплаты, оплаты на
+      кассе/терминале, статус платежа. Интеграция с платёжным шлюзом и кассовой
+      системой. Хранилище — payment-db. (UC-PAY-01/02/03/04)
+  - name: delivery-service
+    description: >-
+      Интеграция доставки: информация о доставке и координаты курьера (пулинг из
+      delivery-Redis). Интеграция с внешней курьерской системой.
+      Хранилища — delivery-db, delivery-Redis. (UC-RCV-02, UC-PAY-03)
+  - name: notification-service
+    description: >-
+      Уведомления: регистрация разрешений и push-токенов устройств. Рассылка push
+      выполняется по событиям orders.status через APNs/FCM/Huawei (асинхронно).
+      Хранилище — notification-db.
+
 paths:
-  /orders:
+
+  # ============================================================
+  #  auth-service
+  # ============================================================
+  /auth/login:
     post:
-      tags: [Orders]
-      summary: Создать заказ
-      operationId: createOrder
+      tags: [auth-service]
+      operationId: login
+      summary: Аутентификация пользователя
+      description: >-
+        Выдаёт пару токенов по учётным данным. Используется всеми клиентскими
+        и персональными приложениями.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Неверные учётные данные
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/token/verify:
+    post:
+      tags: [auth-service]
+      operationId: verifyToken
+      summary: Проверить токен/сессию (internal)
+      description: >-
+        Вызывается api-gateway на каждом входящем запросе для проверки токена
+        и получения субъекта с ролями. (UC-FND-01, UC-PRM-01, шаг «Проверить токен/сессию»)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
-            example:
-              customerId: 8b983ffd-0a04-4ce8-9ff5-1187f2485cd8
-              items:
-                - productId: 63aa4f12-a238-493e-817b-aa6635e6458a
-                  quantity: 2
-      responses:
-        '201':
-          description: Заказ создан
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          description: Ошибка валидации
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-    get:
-      tags: [Orders]
-      summary: Получить список заказов
-      operationId: listOrders
-      parameters:
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/OrderStatus'
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: JWT для проверки }
       responses:
         '200':
-          description: Список заказов
+          description: Токен действителен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Principal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/authorize:
+    post:
+      tags: [auth-service]
+      operationId: authorize
+      summary: Проверить полномочия на действие (internal)
+      description: >-
+        Проверяет полномочия субъекта на конкретное действие/область: уровень
+        акции (local/national) или привязку владельца франшизы к ресторану.
+        (UC-PRM-02/03/04, шаги «Проверить полномочия», «Проверить привязку владельца»)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthorizeRequest' }
+      responses:
+        '200':
+          description: Решение по авторизации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorizeDecision' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /auth/me:
+    get:
+      tags: [auth-service]
+      operationId: getCurrentPrincipal
+      summary: Текущий пользователь
+      responses:
+        '200':
+          description: Данные текущего субъекта
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Principal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ============================================================
+  #  restaurant-service
+  # ============================================================
+  /restaurants:
+    get:
+      tags: [restaurant-service]
+      operationId: searchRestaurants
+      summary: Найти рестораны сети
+      description: >-
+        Подбор ресторанов по геопозиции/адресу с признаком доставки и режимом
+        работы. Геопозиция определяется на клиенте средствами Mapkit; бэкенд к
+        картам не обращается (Д2). Поддерживает повторный подбор по фильтрам.
+        (UC-FND-01)
+      parameters:
+        - { $ref: '#/components/parameters/Latitude' }
+        - { $ref: '#/components/parameters/Longitude' }
+        - name: address
+          in: query
+          description: Город/адрес при ручном вводе без геолокации (A1).
+          schema: { type: string }
+        - name: deliveryOnly
+          in: query
+          description: Только рестораны с доставкой.
+          schema: { type: boolean }
+        - name: openNow
+          in: query
+          description: Только открытые сейчас (по режиму работы).
+          schema: { type: boolean }
+        - name: radiusMeters
+          in: query
+          description: Радиус поиска; используется в т.ч. для расширения зоны (A2/E2).
+          schema: { type: integer, minimum: 100, maximum: 50000, default: 5000 }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Offset' }
+      responses:
+        '200':
+          description: >-
+            Список ресторанов (адрес, расстояние, режим, доставка). Может быть
+            пустым — вне зоны обслуживания / справочник пуст (A2/E2), тогда
+            клиенту предлагается самовывоз или смена адреса.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RestaurantPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /restaurants/{restaurantId}:
+    get:
+      tags: [restaurant-service]
+      operationId: getRestaurant
+      summary: Детали ресторана
+      description: >-
+        Адрес и координаты выбранного ресторана; фиксируются как контекст сессии
+        и используются далее в UC-ORD-01, а также клиентом для построения
+        маршрута на Mapkit (UC-MAP-02).
+      parameters:
+        - { $ref: '#/components/parameters/RestaurantId' }
+      responses:
+        '200':
+          description: Ресторан найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Restaurant' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  #  menu-service
+  # ============================================================
+  /restaurants/{restaurantId}/menu:
+    get:
+      tags: [menu-service]
+      operationId: getMenu
+      summary: Меню и актуальные цены ресторана
+      description: >-
+        Возвращает меню с актуальными ценами для выбранного ресторана. Первый шаг
+        оформления заказа. (UC-ORD-01, UC-ORD-03)
+      parameters:
+        - { $ref: '#/components/parameters/RestaurantId' }
+      responses:
+        '200':
+          description: Меню с ценами
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Menu' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /restaurants/{restaurantId}/menu/validation:
+    post:
+      tags: [menu-service]
+      operationId: validateMenuItems
+      summary: Проверить позиции по актуальному меню
+      description: >-
+        Проверяет доступность и цены переданных позиций против актуального меню.
+        Используется при вводе заказа сотрудником (UC-ORD-02) и при пересчёте
+        корзины. Возвращает недоступные позиции для сценария E1 «позиция недоступна».
+      parameters:
+        - { $ref: '#/components/parameters/RestaurantId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MenuValidationRequest' }
+      responses:
+        '200':
+          description: Результат проверки позиций (доступность, актуальные цены)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuValidationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  #  loyalty-service
+  # ============================================================
+  /promotions:
+    get:
+      tags: [loyalty-service]
+      operationId: listActivePromotions
+      summary: Действующие акции и спецпредложения
+      description: >-
+        Возвращает объединённые национальные и локальные предложения по региону/
+        ресторану, отсеивая недействующие. Без выбранного ресторана возвращаются
+        только общенациональные акции (A1). (UC-PRM-01)
+      parameters:
+        - name: region
+          in: query
+          schema: { type: string }
+        - name: restaurantId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Перечень действующих акций (условия, сроки)
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Order'
+                items: { $ref: '#/components/schemas/Promotion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503':
+          description: >-
+            Подсистема акций недоступна (E1). Переход к меню/оформлению не
+            блокируется.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    post:
+      tags: [loyalty-service]
+      operationId: createPromotion
+      summary: Создать акцию (персонал)
+      description: >-
+        Создаёт акцию с параметрами уровня субъекта. Область действия (локальная
+        для ресторана франшизы или общенациональная для всей сети) валидируется
+        по полномочиям. (UC-PRM-02/03/04)
+      security:
+        - bearerAuth: [promotions:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionInput' }
+      responses:
+        '201':
+          description: Акция создана (в статусе «Черновик»)
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403':
+          description: Недостаточно прав / выход за пределы охвата (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: Конфликт правил акций (E2)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /promotions/{promotionId}:
+    get:
+      tags: [loyalty-service]
+      operationId: getPromotion
+      summary: Параметры акции (персонал)
+      security:
+        - bearerAuth: [promotions:read]
+      parameters:
+        - { $ref: '#/components/parameters/PromotionId' }
+      responses:
+        '200':
+          description: Акция найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [loyalty-service]
+      operationId: updatePromotion
+      summary: Изменить акцию (персонал)
+      description: >-
+        Изменение действующей акции в пределах полномочий субъекта; изменение
+        фиксируется в истории. (UC-PRM-03 A1)
+      security:
+        - bearerAuth: [promotions:write]
+      parameters:
+        - { $ref: '#/components/parameters/PromotionId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionInput' }
+      responses:
+        '200':
+          description: Акция обновлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '403':
+          description: Запрет расширения охвата за пределы ресторана (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Конфликт правил акций (E2)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /promotions/{promotionId}/activation:
+    post:
+      tags: [loyalty-service]
+      operationId: activatePromotion
+      summary: Активировать и опубликовать акцию (персонал)
+      description: >-
+        Валидирует параметры и правила приоритета, сохраняет акцию и публикует её
+        целевой аудитории. Публикация в orders-service выполняется асинхронно
+        через Kafka-топик `promotions.discount`. (UC-PRM-02/03/04, «Публикация акции»)
+      security:
+        - bearerAuth: [promotions:write]
+      parameters:
+        - { $ref: '#/components/parameters/PromotionId' }
+      responses:
+        '200':
+          description: Акция опубликована целевой аудитории
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Конфликт правил акций (E2)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /promotions/{promotionId}/completion:
+    post:
+      tags: [loyalty-service]
+      operationId: completePromotion
+      summary: Завершить акцию (персонал)
+      description: >-
+        Переводит акцию в статус «Завершена» и прекращает её публикацию.
+        (UC-PRM-02 A3, UC-PRM-04 A1)
+      security:
+        - bearerAuth: [promotions:write]
+      parameters:
+        - { $ref: '#/components/parameters/PromotionId' }
+      responses:
+        '200':
+          description: Акция завершена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  #  orders-service
+  # ============================================================
+  /carts:
+    post:
+      tags: [orders-service]
+      operationId: createCart
+      summary: Начать заказ / создать корзину
+      description: >-
+        Создаёт корзину в контексте выбранного ресторана. Поддерживается гостевое
+        оформление (без авторизации) с указанием контактных данных. (UC-ORD-01/03)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartCreateRequest' }
+      responses:
+        '201':
+          description: Корзина создана
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /carts/{cartId}:
+    get:
+      tags: [orders-service]
+      operationId: getCart
+      summary: Состав и сумма корзины
+      parameters:
+        - { $ref: '#/components/parameters/CartId' }
+      responses:
+        '200':
+          description: Текущий состав и предварительная сумма
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /carts/{cartId}/items:
+    put:
+      tags: [orders-service]
+      operationId: updateCartItems
+      summary: Обновить корзину (позиции, модификаторы, количество)
+      description: >-
+        Обновляет состав корзины и пересчитывает сумму с учётом акций (реплика
+        `promotions.discount`). При недоступности позиции она удаляется/запрещается
+        с пояснением причины и пересчётом суммы (E1). (UC-ORD-01 loop, UC-ORD-03)
+      parameters:
+        - { $ref: '#/components/parameters/CartId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartItemsUpdate' }
+      responses:
+        '200':
+          description: Обновлённая корзина (состав, применённые акции, сумма)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Позиция недоступна — состав скорректирован (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /carts/{cartId}/fulfillment:
+    put:
+      tags: [orders-service]
+      operationId: setCartFulfillment
+      summary: Выбрать/сменить способ получения
+      description: >-
+        Устанавливает способ получения (доставка / в кафе) и, при доставке, адрес.
+        Смена способа влечёт пересчёт (например самовывоз вместо доставки, A4).
+        (UC-ORD-01, UC-RCV-01)
+      parameters:
+        - { $ref: '#/components/parameters/CartId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FulfillmentInput' }
+      responses:
+        '200':
+          description: Способ получения зафиксирован, сумма пересчитана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /orders:
+    post:
+      tags: [orders-service]
+      operationId: createOrder
+      summary: Оформить заказ
+      description: >-
+        Фиксирует финальный состав и сумму, присваивает номер и создаёт заказ на
+        основе корзины. Оформленный заказ передаётся в обработку (UC-ORD-06)
+        асинхронно через Kafka `orders.state`. Заказ передаётся в обработку только
+        после подтверждения оплаты (см. payment-service). Может создаваться
+        клиентом (UC-ORD-03) или сотрудником от имени клиента (UC-ORD-02, факс).
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreateRequest' }
+      responses:
+        '201':
+          description: Заказ создан, присвоен номер
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '402':
+          description: Оплата не завершена — оплаченный заказ не создаётся (E3/E2)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: Позиция недоступна — требуется корректировка состава (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
   /orders/{orderId}:
     get:
-      tags: [Orders]
-      summary: Получить заказ
+      tags: [orders-service]
       operationId: getOrder
+      summary: Получить заказ
       parameters:
-        - name: orderId
-          in: path
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Данные заказа (состав, статус, суммы, способ получения/оплаты)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{orderId}/eta:
+    get:
+      tags: [orders-service]
+      operationId: getOrderEta
+      summary: Просмотреть время получения заказа
+      description: >-
+        Возвращает ориентировочное время готовности (для самовывоза) или доставки.
+        Оценка считается из локальной реплики загрузки производства
+        (`production.lead.time`), без синхронного обращения к системе производства
+        (Д4). При недоступности оценки возвращается усреднённое время с пометкой о
+        приблизительности (E1). (UC-ORD-05)
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Ориентировочное время получения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Eta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{orderId}/pickup-slot:
+    put:
+      tags: [orders-service]
+      operationId: setPickupSlot
+      summary: Зафиксировать желаемый интервал получения
+      description: >-
+        Сохраняет выбранный клиентом интервал получения в пределах режима работы
+        ресторана (отложенное время, UC-ORD-05 A1).
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PickupSlotInput' }
+      responses:
+        '200':
+          description: Интервал получения сохранён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /orders/search:
+    get:
+      tags: [orders-service]
+      operationId: searchOrder
+      summary: Поиск заказа по номеру (персонал)
+      description: >-
+        Поиск заказа сотрудником кафе по номеру для выдачи. Если заказ не найден —
+        уточнить данные клиента или эскалировать (E1). (UC-RCV-03)
+      security:
+        - bearerAuth: [orders:staff]
+      parameters:
+        - name: number
+          in: query
           required: true
-          schema:
-            type: string
-            format: uuid
+          description: Номер заказа
+          schema: { type: string }
       responses:
         '200':
           description: Заказ найден
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
+              schema: { $ref: '#/components/schemas/Order' }
         '404':
-          description: Заказ не найден
+          description: Заказ не найден (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /orders/{orderId}/issuance:
+    post:
+      tags: [orders-service]
+      operationId: markOrderIssued
+      summary: Отметить выдачу заказа (персонал)
+      description: >-
+        Фиксирует факт выдачи заказа клиенту и закрывает заказ. Доступно
+        сотруднику кафе при получении в ресторане. (UC-RCV-03)
+      security:
+        - bearerAuth: [orders:staff]
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Выдача зафиксирована, заказ закрыт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Заказ нельзя выдать в текущем статусе (например, не оплачен)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ============================================================
+  #  payment-service
+  # ============================================================
+  /orders/{orderId}/payment-methods:
+    get:
+      tags: [payment-service]
+      operationId: getPaymentMethods
+      summary: Доступные способы оплаты
+      description: >-
+        Возвращает способы оплаты, доступные для выбранного способа получения
+        (онлайн / курьеру / в ресторане). Платёжный сервис уже знает о заказе из
+        события `orders.state`. (UC-PAY-01)
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Список способов оплаты
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                type: array
+                items: { $ref: '#/components/schemas/PaymentMethod' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{orderId}/payments:
+    post:
+      tags: [payment-service]
+      operationId: initiatePayment
+      summary: Инициировать платёж
+      description: >-
+        Создаёт платёж по заказу. Для онлайн-оплаты (UC-PAY-02) сервис
+        инициализирует оплату в платёжном шлюзе и возвращает платёжную ссылку;
+        итоговый статус приходит webhook-ом от шлюза либо запрашивается синхронно.
+        Для оплаты курьеру (UC-PAY-03) формируется платёжная ссылка, передаваемая
+        в delivery-service через Kafka `payments.link`. Заказ передаётся в
+        обработку только после подтверждения оплаты. Идемпотентно по
+        `Idempotency-Key`.
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentInitRequest' }
+      responses:
+        '201':
+          description: Платёж инициирован
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '402':
+          description: Платёж отклонён — повторить или сменить способ (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            Повторная оплата этой попытки заблокирована; статус неизвестен (E2).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /orders/{orderId}/payments/pos:
+    post:
+      tags: [payment-service]
+      operationId: initiatePosPayment
+      summary: Инициировать оплату на кассе/терминале (персонал)
+      description: >-
+        Инициализирует оплату на кассе/терминале при получении в ресторане. Даже
+        наличная оплата проводится через кассу с терминальным чеком (Д6).
+        Подтверждение приходит webhook-ом от кассовой системы. (UC-PAY-04)
+      security:
+        - bearerAuth: [payments:staff]
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PosPaymentInitRequest' }
+      responses:
+        '201':
+          description: Оплата на кассе инициирована
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '402':
+          description: Отказ кассовой операции — предложить иной способ (E1)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{orderId}/payments/{paymentId}:
+    get:
+      tags: [payment-service]
+      operationId: getPayment
+      summary: Статус платежа
+      description: >-
+        Возвращает текущий статус платежа. Используется в том числе при неизвестном
+        статусе/тайм-ауте для запроса состояния операции. (UC-PAY-01/02 E2)
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+        - { $ref: '#/components/parameters/PaymentId' }
+      responses:
+        '200':
+          description: Текущий статус платежа
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  #  delivery-service
+  # ============================================================
+  /orders/{orderId}/delivery:
+    get:
+      tags: [delivery-service]
+      operationId: getDeliveryInfo
+      summary: Информация о доставке
+      description: >-
+        Возвращает статус доставки и назначенного курьера по заказу. Назначение
+        курьера инициируется по событию `orders.state`; при отсутствии курьера
+        клиенту предлагается самовывоз (E2). (UC-RCV-02)
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Сведения о доставке
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryInfo' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{orderId}/delivery/courier-location:
+    get:
+      tags: [delivery-service]
+      operationId: getCourierLocation
+      summary: Координаты курьера (пулинг)
+      description: >-
+        Возвращает последние координаты курьера из delivery-Redis для отслеживания
+        доставки. Клиент периодически опрашивает эндпоинт и отображает курьера на
+        Mapkit. Координаты обновляются пулингом из внешней курьерской системы.
+        (UC-RCV-02, loop «Пулинг координат курьера»)
+      parameters:
+        - { $ref: '#/components/parameters/OrderId' }
+      responses:
+        '200':
+          description: Последние координаты курьера
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourierLocation' }
+        '404':
+          description: Координаты недоступны (курьер не назначен/не выехал)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ============================================================
+  #  notification-service
+  # ============================================================
+  /notifications/device-tokens:
+    post:
+      tags: [notification-service]
+      operationId: registerDeviceToken
+      summary: Зарегистрировать разрешения и push-токен
+      description: >-
+        Регистрирует push-токен устройства и разрешения на уведомления. Push
+        отправляется только на мобильные приложения (Д3); рассылка выполняется по
+        событиям `orders.status` через APNs/FCM/Huawei асинхронно.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceTokenRegistration' }
+      responses:
+        '201':
+          description: Токен зарегистрирован
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceToken' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    get:
+      tags: [notification-service]
+      operationId: listDeviceTokens
+      summary: Токены устройств текущего пользователя
+      responses:
+        '200':
+          description: Список зарегистрированных токенов
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeviceToken' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /notifications/device-tokens/{tokenId}:
+    delete:
+      tags: [notification-service]
+      operationId: deleteDeviceToken
+      summary: Отозвать push-токен
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Токен удалён
+        '404': { $ref: '#/components/responses/NotFound' }
+
+# ================================================================
+#  Входящие webhook-и от внешних систем
+# ================================================================
+webhooks:
+
+  paymentGatewayStatus:
+    post:
+      tags: [payment-service]
+      operationId: onPaymentGatewayStatus
+      summary: Статус оплаты от платёжного шлюза
+      description: >-
+        Асинхронное уведомление о статусе онлайн-оплаты. Приёмник —
+        payment-service. При отсутствии webhook статус запрашивается синхронно.
+        (UC-PAY-02)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentStatusCallback' }
+      responses:
+        '200': { description: Уведомление принято }
+
+  posPaymentConfirmation:
+    post:
+      tags: [payment-service]
+      operationId: onPosPaymentConfirmation
+      summary: Подтверждение оплаты от кассовой системы
+      description: >-
+        Подтверждение оплаты при получении в ресторане. Приёмник — payment-service;
+        далее статус публикуется в `payments.status`. (UC-PAY-04)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentStatusCallback' }
+      responses:
+        '200': { description: Уведомление принято }
+
+  courierDeliveryStatus:
+    post:
+      tags: [delivery-service]
+      operationId: onCourierDeliveryStatus
+      summary: Статус доставки от курьерской системы
+      description: >-
+        Уведомление о статусе доставки (в т. ч. «доставлено/оплачено»). Приёмник —
+        delivery-service; далее статус публикуется в `delivery.status`.
+        (UC-RCV-02, UC-PAY-03)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeliveryStatusCallback' }
+      responses:
+        '200': { description: Уведомление принято }
+
+# ================================================================
+#  Асинхронный обмен через Kafka (не REST; приведён для полноты)
+# ================================================================
+x-kafka-topics:
+  orders.state:
+    description: Передача оформленного заказа в обработку.
+    producer: orders-service
+    consumers: [payment-service, delivery-service, orders-production-system]
+  orders.status:
+    description: Статус заказа для уведомлений.
+    producer: orders-service
+    consumers: [notification-service, payment-service]
+  orders.payments.link:
+    description: Платёжная ссылка для оплаты курьеру.
+    producer: payment-service
+    consumers: [delivery-service]
+  orders.payments.status:
+    description: Итоговый статус оплаты.
+    producer: payment-service
+    consumers: [orders-service]
+  orders.dish.status:
+    description: Статусы блюд из системы производства.
+    producer: orders-production-system
+    consumers: [orders-service]
+  orders.delivery.status:
+    description: Статус доставки.
+    producer: delivery-service
+    consumers: [orders-service]
+  promotions.discount:
+    description: Публикация акций и промо для применения при оформлении.
+    producer: loyalty-service
+    consumers: [orders-service]
+  production.lead.time:
+    description: Загрузка производства для расчёта времени готовности (Д4).
+    producer: orders-production-system
+    consumers: [orders-service]
+
+# ================================================================
+#  Components
+# ================================================================
 components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        JWT, проверяемый api-gateway через auth-service. Скоупы в списке security
+        операции (например `promotions:write`, `orders:staff`) означают требуемые
+        права субъекта.
+
+  headers:
+    Location:
+      description: URI созданного ресурса.
+      schema: { type: string, format: uri-reference }
+
+  parameters:
+    RestaurantId:
+      name: restaurantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CartId:
+      name: cartId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PromotionId:
+      name: promotionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Latitude:
+      name: lat
+      in: query
+      description: Широта (определяется на клиенте средствами Mapkit, Д2).
+      schema: { type: number, format: double, minimum: -90, maximum: 90 }
+    Longitude:
+      name: lon
+      in: query
+      description: Долгота (определяется на клиенте средствами Mapkit, Д2).
+      schema: { type: number, format: double, minimum: -180, maximum: 180 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >-
+        Уникальный ключ, гарантирующий однократное выполнение создающей операции
+        при повторной отправке.
+      schema: { type: string, maxLength: 128 }
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Требуется аутентификация / токен недействителен
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Недостаточно прав
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Конфликт состояния ресурса
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableEntity:
+      description: Семантически некорректные данные
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Превышен лимит запросов
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: Сервис временно недоступен
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
   schemas:
-    CreateOrderRequest:
-      type: object
-      required: [customerId, items]
-      properties:
-        customerId:
-          type: string
-          format: uuid
-        items:
-          type: array
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/OrderItemRequest'
-    OrderItemRequest:
-      type: object
-      required: [productId, quantity]
-      properties:
-        productId:
-          type: string
-          format: uuid
-        quantity:
-          type: integer
-          minimum: 1
-          maximum: 100
-    Order:
-      type: object
-      required: [id, customerId, status, items, createdAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        customerId:
-          type: string
-          format: uuid
-        status:
-          $ref: '#/components/schemas/OrderStatus'
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderItem'
-        createdAt:
-          type: string
-          format: date-time
-    OrderItem:
-      allOf:
-        - $ref: '#/components/schemas/OrderItemRequest'
-        - type: object
-          required: [price]
-          properties:
-            price:
-              type: number
-              format: decimal
-              example: 12.50
-    OrderStatus:
-      type: string
-      enum:
-        - CREATED
-        - PAYMENT_PENDING
-        - PAID
-        - COOKING
-        - READY
-        - DELIVERED
-        - CANCELLED
+
     Problem:
       type: object
-      required: [title, status]
+      description: Формат ошибки по RFC 9457 (Problem Details).
       properties:
-        title:
+        type: { type: string, format: uri, default: 'about:blank' }
+        title: { type: string, example: Позиция недоступна }
+        status: { type: integer, example: 409 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code: { type: string, description: Машиночитаемый код ошибки, example: ITEM_UNAVAILABLE }
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number, format: decimal, example: 549.00 }
+        currency: { type: string, example: RUB, description: Код валюты ISO 4217 }
+
+    GeoPoint:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, format: double }
+        lon: { type: number, format: double }
+
+    # ---------- auth-service ----------
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string }
+        password: { type: string, format: password }
+        deviceId: { type: string }
+    TokenPair:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, default: Bearer }
+        expiresIn: { type: integer, description: TTL access-токена, сек }
+    Principal:
+      type: object
+      properties:
+        subjectId: { type: string, format: uuid }
+        displayName: { type: string }
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [client, cafe_staff, franchise_owner, hq_staff]
+        restaurantId:
           type: string
-        status:
-          type: integer
-        detail:
+          format: uuid
+          description: Привязка к ресторану (для владельца франшизы/сотрудника кафе).
+    AuthorizeRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
           type: string
+          example: promotion.manage
+        scope:
+          type: string
+          enum: [local, national]
+          description: Область действия для акций.
+        restaurantId:
+          type: string
+          format: uuid
+          description: Ресторан, к которому проверяется привязка.
+    AuthorizeDecision:
+      type: object
+      required: [allowed]
+      properties:
+        allowed: { type: boolean }
+        reason: { type: string }
+
+    # ---------- restaurant-service ----------
+    RestaurantSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+        distanceMeters: { type: integer }
+        deliveryAvailable: { type: boolean }
+        openNow: { type: boolean }
+    Restaurant:
+      allOf:
+        - $ref: '#/components/schemas/RestaurantSummary'
+        - type: object
+          properties:
+            workingHours:
+              type: array
+              items:
+                type: object
+                properties:
+                  dayOfWeek: { type: integer, minimum: 1, maximum: 7 }
+                  opensAt: { type: string, example: '09:00' }
+                  closesAt: { type: string, example: '22:00' }
+    RestaurantPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RestaurantSummary' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+
+    # ---------- menu-service ----------
+    Modifier:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        price: { $ref: '#/components/schemas/Money' }
+    MenuItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        price: { $ref: '#/components/schemas/Money' }
+        available: { type: boolean }
+        modifiers:
+          type: array
+          items: { $ref: '#/components/schemas/Modifier' }
+    Menu:
+      type: object
+      properties:
+        restaurantId: { type: string, format: uuid }
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              items:
+                type: array
+                items: { $ref: '#/components/schemas/MenuItem' }
+    MenuValidationRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [menuItemId, quantity]
+            properties:
+              menuItemId: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1 }
+              modifierIds:
+                type: array
+                items: { type: string, format: uuid }
+    MenuValidationResult:
+      type: object
+      properties:
+        valid: { type: boolean }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              menuItemId: { type: string, format: uuid }
+              available: { type: boolean }
+              currentPrice: { $ref: '#/components/schemas/Money' }
+              reason: { type: string, description: Причина недоступности, если есть }
+
+    # ---------- loyalty-service ----------
+    PromotionScope:
+      type: string
+      enum: [local, national]
+      description: Область действия акции — ресторан франшизы или вся сеть.
+    PromotionStatus:
+      type: string
+      enum: [draft, active, completed]
+    Promotion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        scope: { $ref: '#/components/schemas/PromotionScope' }
+        status: { $ref: '#/components/schemas/PromotionStatus' }
+        restaurantId:
+          type: string
+          format: uuid
+          description: Заполняется для локальных акций.
+        priority: { type: integer }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        conditions:
+          type: object
+          additionalProperties: true
+          description: Условия акции (позиции, пороги, скидка).
+    PromotionInput:
+      type: object
+      required: [title, scope, startsAt, endsAt]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        scope: { $ref: '#/components/schemas/PromotionScope' }
+        restaurantId:
+          type: string
+          format: uuid
+          description: Обязателен для локальной акции; должен совпадать с привязкой владельца.
+        priority: { type: integer }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        conditions:
+          type: object
+          additionalProperties: true
+
+    # ---------- orders-service ----------
+    FulfillmentType:
+      type: string
+      enum: [delivery, pickup]
+    ContactInfo:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, format: email }
+    Address:
+      type: object
+      properties:
+        raw: { type: string }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+    CartItemInput:
+      type: object
+      required: [menuItemId, quantity]
+      properties:
+        menuItemId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+        modifierIds:
+          type: array
+          items: { type: string, format: uuid }
+    CartItem:
+      allOf:
+        - $ref: '#/components/schemas/CartItemInput'
+        - type: object
+          properties:
+            name: { type: string }
+            unitPrice: { $ref: '#/components/schemas/Money' }
+            lineTotal: { $ref: '#/components/schemas/Money' }
+            available: { type: boolean }
+    CartCreateRequest:
+      type: object
+      required: [restaurantId]
+      properties:
+        restaurantId: { type: string, format: uuid }
+        guest:
+          type: boolean
+          description: Гостевое оформление без авторизации (UC-ORD-03 A1).
+        contact: { $ref: '#/components/schemas/ContactInfo' }
+    CartItemsUpdate:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItemInput' }
+    AppliedPromotion:
+      type: object
+      properties:
+        promotionId: { type: string, format: uuid }
+        title: { type: string }
+        discount: { $ref: '#/components/schemas/Money' }
+    Cart:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        restaurantId: { type: string, format: uuid }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        appliedPromotions:
+          type: array
+          items: { $ref: '#/components/schemas/AppliedPromotion' }
+        fulfillment: { $ref: '#/components/schemas/FulfillmentInfo' }
+        subtotal: { $ref: '#/components/schemas/Money' }
+        discountTotal: { $ref: '#/components/schemas/Money' }
+        total: { $ref: '#/components/schemas/Money' }
+    FulfillmentInput:
+      type: object
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/FulfillmentType' }
+        address:
+          $ref: '#/components/schemas/Address'
+    FulfillmentInfo:
+      type: object
+      properties:
+        type: { $ref: '#/components/schemas/FulfillmentType' }
+        address: { $ref: '#/components/schemas/Address' }
+    PickupSlotInput:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+    OrderCreateRequest:
+      type: object
+      required: [cartId]
+      properties:
+        cartId: { type: string, format: uuid }
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethodType'
+        contact: { $ref: '#/components/schemas/ContactInfo' }
+        channel:
+          type: string
+          enum: [online, staff_fax]
+          description: Канал оформления (клиент онлайн / сотрудник по факсу).
+    OrderStatus:
+      type: string
+      enum: [created, in_production, ready, in_delivery, delivered, issued, closed, cancelled]
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, description: Уникальный номер заказа }
+        restaurantId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        fulfillment: { $ref: '#/components/schemas/FulfillmentInfo' }
+        total: { $ref: '#/components/schemas/Money' }
+        eta: { $ref: '#/components/schemas/Eta' }
+        createdAt: { type: string, format: date-time }
+    Eta:
+      type: object
+      properties:
+        readyAt: { type: string, format: date-time }
+        deliveryAt: { type: string, format: date-time }
+        estimateMinutes: { type: integer }
+        approximate:
+          type: boolean
+          description: true — показано усреднённое время при недоступной оценке (E1).
+
+    # ---------- payment-service ----------
+    PaymentMethodType:
+      type: string
+      enum: [online_card, courier_card, pos]
+      description: Онлайн-картой / курьеру (картой по ссылке) / на кассе.
+    PaymentMethod:
+      type: object
+      properties:
+        type: { $ref: '#/components/schemas/PaymentMethodType' }
+        title: { type: string }
+        enabled: { type: boolean }
+    PaymentStatus:
+      type: string
+      enum: [pending, authorized, paid, declined, unknown]
+    PaymentInitRequest:
+      type: object
+      required: [method]
+      properties:
+        method: { $ref: '#/components/schemas/PaymentMethodType' }
+        returnUrl:
+          type: string
+          format: uri
+          description: URL возврата после оплаты в форме провайдера (онлайн).
+    PosPaymentInitRequest:
+      type: object
+      required: [tender]
+      properties:
+        tender:
+          type: string
+          enum: [card, cash]
+          description: Способ на кассе; наличные также проводятся через терминал (Д6).
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        method: { $ref: '#/components/schemas/PaymentMethodType' }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        amount: { $ref: '#/components/schemas/Money' }
+        paymentUrl:
+          type: string
+          format: uri
+          description: Платёжная ссылка (онлайн / для оплаты курьеру).
+        createdAt: { type: string, format: date-time }
+    PaymentStatusCallback:
+      type: object
+      required: [orderId, status]
+      properties:
+        orderId: { type: string, format: uuid }
+        paymentId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        externalRef: { type: string }
+
+    # ---------- delivery-service ----------
+    DeliveryStatus:
+      type: string
+      enum: [searching_courier, courier_assigned, picked_up, en_route, delivered, failed]
+    Courier:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+    DeliveryInfo:
+      type: object
+      properties:
+        orderId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        courier: { $ref: '#/components/schemas/Courier' }
+        etaAt: { type: string, format: date-time }
+    CourierLocation:
+      type: object
+      properties:
+        location: { $ref: '#/components/schemas/GeoPoint' }
+        updatedAt: { type: string, format: date-time }
+    DeliveryStatusCallback:
+      type: object
+      required: [orderId, status]
+      properties:
+        orderId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        paid:
+          type: boolean
+          description: Признак оплаты при доставке (UC-PAY-03).
+
+    # ---------- notification-service ----------
+    PushPlatform:
+      type: string
+      enum: [apns, fcm, huawei]
+    DeviceTokenRegistration:
+      type: object
+      required: [platform, token]
+      properties:
+        platform: { $ref: '#/components/schemas/PushPlatform' }
+        token: { type: string }
+        permissionsGranted: { type: boolean }
+    DeviceToken:
+      allOf:
+        - $ref: '#/components/schemas/DeviceTokenRegistration'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            registeredAt: { type: string, format: date-time }
