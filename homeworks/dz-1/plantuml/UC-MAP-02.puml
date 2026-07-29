@@ -1,0 +1,48 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-MAP-02 «Построить маршрут до ресторана» (extend UC-MAP-01)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "restaurant-service" as RestSvc
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+ 
+note over App: Адрес/координаты ресторана берутся из контекста UC-FND-01
+Client -> App: Запросить построение маршрута до ресторана
+opt Координаты ресторана отсутствуют в контексте
+  App -> RestSvc: Получить адрес/координаты выбранного ресторана
+  RestSvc --> App: Координаты ресторана
+end
+App -> Maps: Построить маршрут с учётом дорожной ситуации [HTTP, на клиенте]
+Maps --> App: Маршрут, расстояние, время в пути
+App --> Client: Отобразить маршрут и ориентировочное время
+ 
+alt A1. Маршрут после оформления заказа
+  App -> Maps: Использовать адрес ресторана как точку назначения
+end
+group E1. Маршрут не построен
+  Maps --> App: Сервис маршрутизации недоступен
+  App --> Client: Показать адрес и предложить повторить
+end
+@enduml

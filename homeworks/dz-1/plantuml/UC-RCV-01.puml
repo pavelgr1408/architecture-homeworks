@@ -1,0 +1,51 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-01 «Получить заказ» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.status (заказ готов)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+Push --> App: Уведомление о готовности
+App --> Client: Показать готовность и способ получения
+ 
+alt A1. Получение доставкой
+  ref over Client, OrdSvc: UC-RCV-02 «Получить заказ доставкой»
+else A2. Получение в кафе
+  ref over Client, OrdSvc: UC-RCV-03 «Получить заказ в кафе»
+end
+ 
+OrdSvc -> OrdSvc: Зафиксировать факт выдачи и закрыть заказ
+ 
+group E1. Клиент не явился / недоступен
+  OrdSvc -> OrdSvc: Зафиксировать неполучение по правилу ресторана
+  OrdSvc --> App: Уведомить клиента
+end
+@enduml

@@ -1,0 +1,59 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-03 «Оплатить курьеру» (специализация UC-PAY-01)
+actor "Клиент" as Client
+actor "Курьер" as Courier
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "payment-service" as PaySvc
+participant "delivery-service" as DelSvc
+participant "Курьерская\nсистема" as DeliveryExt
+participant "Платёжный\nшлюз" as PayGw
+ 
+OrdSvc --> Kafka: produser.orders.state
+Kafka --> PaySvc: consumer.orders.state
+note over PaySvc: Оплата не онлайн — формируется платёжная ссылка (Д5: только карта через терминал)
+PaySvc --> Kafka: produser.orders.payments.link (платёжная ссылка)
+Kafka --> DelSvc: consumer.orders.payments.link
+DelSvc -> DeliveryExt: Передать линк на оплату [HTTP REST]
+ 
+Courier -> Client: Передать заказ и запросить оплату
+Client -> Courier: Оплатить картой по ссылке через терминал курьера
+Courier -> DeliveryExt: Подтвердить приём оплаты
+ 
+DeliveryExt --> DelSvc: Статус «доставлено/оплачено» [Webhook]
+DelSvc --> Kafka: produser.orders.delivery.status
+Kafka --> OrdSvc: consumer.orders.delivery.status
+OrdSvc --> PaySvc: Запрос окончательного подтверждения оплаты
+PaySvc -> PayGw: Запрос статуса оплаты по заказу [HTTP REST]
+PayGw --> PaySvc: Статус «оплачено»
+PaySvc --> Kafka: produser.orders.payments.status
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Пометить заказ оплаченным и выданным
+ 
+group E1. Клиент отказался от оплаты
+  Courier -> DeliveryExt: Зафиксировать отказ; применить правило неоплаты и возврата заказа
+end
+@enduml

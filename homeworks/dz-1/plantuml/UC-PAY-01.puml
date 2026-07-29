@@ -1,0 +1,62 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-01 «Выполнить оплату заказа» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "payment-service" as PaySvc
+database "payment-db" as PayDb
+ 
+note over OrdSvc, PaySvc: Общая часть: платёжный сервис узнаёт о заказе\nдо клиентского запроса на оплату
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> PaySvc: consumer.orders.state (получение заказа)
+PaySvc -> PayDb: Сохранить контекст заказа [JDBC]
+ 
+Client -> App: Перейти к оплате
+App -> GW: Показать доступные способы оплаты [HTTPS REST]
+GW --> App: Способы оплаты (для выбранного способа получения)
+Client -> App: Выбрать способ оплаты
+ 
+alt A1. Оплата онлайн
+  ref over App, PaySvc: UC-PAY-02 «Оплатить онлайн»
+else A2. Оплата курьеру
+  ref over App, PaySvc: UC-PAY-03 «Оплатить курьеру»
+else A3. Оплата в ресторане
+  ref over App, PaySvc: UC-PAY-04 «Оплатить в ресторане при получении»
+end
+ 
+PaySvc --> Kafka: produser.orders.payments.status (статус оплаты)
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Присвоить статус оплаты, разрешить обработку/выдачу
+ 
+group E1. Оплата отклонена
+  PaySvc --> App: Оплаченный заказ не создаётся; повторить или сменить способ
+end
+group E2. Статус оплаты неизвестен
+  PaySvc -> PaySvc: Заблокировать повторную оплату этой попытки; запросить статус; журналировать инцидент
+end
+@enduml

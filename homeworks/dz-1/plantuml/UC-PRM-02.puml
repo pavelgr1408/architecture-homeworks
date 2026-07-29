@@ -1,0 +1,66 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-02 «Управлять акциями и специальными предложениями» (обобщающий)
+actor "Сотрудник" as Staff
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Staff -> StaffApp: Открыть управление акциями (создать/изменить)
+StaffApp -> GW: Запрос управления акцией [HTTPS REST]
+GW -> Auth: Проверить полномочия (уровень local/national)
+Auth --> GW: OK
+GW -> LoySvc: Открыть форму параметров акции
+LoySvc --> StaffApp: Форма (условия, период, позиции, охват)
+ 
+Staff -> StaffApp: Задать параметры акции своего уровня
+alt A1. Локальная акция (UC-PRM-03)
+  note over LoySvc: Область действия — конкретный ресторан франшизы
+else A2. Общенациональная акция (UC-PRM-04)
+  note over LoySvc: Область действия — вся сеть
+else A3. Завершение акции
+  LoySvc -> LoyDb: Перевести акцию в статус «Завершена», прекратить публикацию
+end
+ 
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать параметры и правила приоритета
+LoySvc -> LoyDb: Сохранить акцию и историю изменения [JDBC]
+ 
+== Публикация акции ==
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount (для применения при оформлении)
+LoySvc --> StaffApp: Акция опубликована целевой аудитории
+ 
+group E1. Недостаточно прав
+  LoySvc --> StaffApp: Отклонить действие и журналировать попытку
+end
+group E2. Конфликт правил акций
+  LoySvc --> StaffApp: Сообщить о конфликте; скорректировать условия/приоритет
+end
+@enduml

@@ -1,0 +1,71 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-03 «Оформить заказ онлайн» (специализация UC-ORD-01)
+actor "Клиент" as Client
+participant "mobile-app-apple /\nmobile-app-Android / web-app" as App
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "menu-service" as MenuSvc
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "Система\nпроизводства" as Prod
+ 
+Client -> App: Нажать «Оформить заказ» и формировать корзину
+alt A1. Гостевое оформление (не авторизован)
+  App -> GW: Оформление без регистрации (контактные данные)
+else Авторизованный клиент
+  App -> GW: Запрос с токеном
+  GW -> Auth: Проверить сессию
+  Auth --> GW: OK
+end
+ 
+App -> GW: Обновить корзину [HTTPS REST]
+GW -> MenuSvc: Меню и цены
+GW -> OrdSvc: Пересчитать состав и сумму (акции в реальном времени)
+OrdSvc -> OrdDb: Сохранить корзину [JDBC]
+OrdSvc --> App: Состав, сумма, применимые акции
+ 
+Client -> App: Выбрать способ получения; при доставке — адрес
+ref over App, OrdSvc, Prod: UC-ORD-05 «Просмотреть время получения»
+Client -> App: Выбрать способ оплаты и подтвердить
+ref over App, OrdSvc: UC-PAY-01 «Выполнить оплату заказа»
+ 
+group E2. Оплата отклонена
+  OrdSvc --> App: Заказ не создаётся; повторить оплату или сменить способ
+end
+group E1. Потеря соединения
+  App --> Client: Корзина сохранена; продолжить с места прерывания
+end
+ 
+OrdSvc -> OrdSvc: Создать заказ, присвоить номер
+OrdSvc --> Kafka: produser.orders.state (в обработку — UC-ORD-06)
+Kafka --> Prod: consumer.orders.state
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc --> App: push с номером и временем готовности
+App --> Client: Показать номер заказа
+@enduml

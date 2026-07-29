@@ -1,0 +1,78 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-02 «Получить заказ доставкой» (специализация UC-RCV-01)
+actor "Клиент" as Client
+actor "Курьер" as Courier
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+participant "delivery-service" as DelSvc
+database "delivery-Redis" as Redis
+queue "kafka" as Kafka
+participant "Курьерская\nсистема" as DeliveryExt
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.state (готов к доставке)
+Kafka --> DelSvc: consumer.orders.state (для доставки)
+DelSvc -> DeliveryExt: Поиск курьера [HTTP REST]
+DeliveryExt --> DelSvc: Курьер назначен
+ 
+group E2. Нет доступного курьера
+  DelSvc --> OrdSvc: Очередь назначения / задержка / предложить самовывоз (UC-RCV-03)
+end
+ 
+Courier -> DeliveryExt: Забрать заказ и выехать по маршруту
+loop Пулинг координат курьера
+  DelSvc -> DeliveryExt: Получить координаты курьера [HTTP REST]
+  DeliveryExt --> DelSvc: Координаты
+  DelSvc -> Redis: Записать координаты [RESP]
+  Client -> GW: Отслеживать доставку (пулинг)
+  GW -> DelSvc: Получить координаты курьера
+  DelSvc --> GW: Координаты
+  GW --> App: Координаты курьера
+  App -> Maps: Отобразить курьера на карте (на клиенте)
+end
+ 
+Courier -> Client: Передать заказ
+alt Оплата курьеру (UC-PAY-03)
+  ref over Client, Courier, DeliveryExt: UC-PAY-03 «Оплатить курьеру»
+else A1. Оплачено онлайн (UC-PAY-02)
+  Courier -> Client: Передать заказ без приёма оплаты
+end
+ 
+DeliveryExt --> DelSvc: Статус «доставлено» [Webhook]
+DelSvc --> Kafka: produser.orders.delivery.status
+Kafka --> OrdSvc: consumer.orders.delivery.status
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: push «доставлено»
+OrdSvc -> OrdSvc: Зафиксировать доставку и закрыть заказ
+ 
+group E1. Клиент недоступен по адресу
+  DeliveryExt --> DelSvc: Неудача доставки; применить правило ресторана и уведомить клиента
+end
+@enduml

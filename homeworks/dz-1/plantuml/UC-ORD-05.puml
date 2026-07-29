@@ -1,0 +1,58 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-05 «Просмотреть время получения заказа» (extend UC-ORD-01)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "Система\nпроизводства" as Prod
+ 
+note over Prod, OrdSvc: Фоновая репликация загрузки производства (Д4)
+Prod --> Kafka: produser.production.lead.time
+Kafka --> OrdSvc: consumer.production.lead.time
+OrdSvc -> OrdDb: Обновить локальную реплику времени [JDBC]
+ 
+== Запрос времени клиентом ==
+Client -> App: Запросить время получения заказа
+App -> GW: GET /orders/{id}/eta [HTTPS REST]
+GW -> OrdSvc: Оценить загрузку и состав заказа
+OrdSvc -> OrdDb: Прочитать локальную реплику lead.time [JDBC]
+OrdDb --> OrdSvc: Данные загрузки
+OrdSvc -> OrdSvc: Рассчитать ориентировочное время\n(готовности для самовывоза / доставки)
+OrdSvc --> GW: Время получения
+GW --> App: Ориентировочное время
+App --> Client: Показать время; клиент продолжает оформление
+ 
+alt A1. Отложенное время
+  Client -> App: Выбрать желаемый интервал получения (в пределах режима работы)
+  App -> GW: Зафиксировать интервал
+  GW -> OrdSvc: Сохранить интервал
+end
+group E1. Оценка недоступна
+  OrdSvc --> App: Показать типовое (усреднённое) время с пометкой о приблизительности
+end
+@enduml

@@ -1,0 +1,69 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-06 «Обработать заказ» (include <= UC-ORD-01)
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "Система\nпроизводства" as Prod
+participant "delivery-service" as DelSvc
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+[-> OrdSvc: Оформленный заказ (состав, способ получения и оплаты)
+OrdSvc -> OrdSvc: Валидация: состав, доступность позиций,\nстатус оплаты, режим работы ресторана
+ 
+group E1. Валидация не пройдена
+  OrdSvc -->]: Заказ не ставится в производство; возврат причины в оформление
+end
+ 
+OrdSvc -> OrdDb: Зарегистрировать заказ в очереди производства [JDBC]
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> Prod: consumer.orders.state (на приготовление)
+ 
+alt A1. Заказ на доставку
+  OrdSvc --> Kafka: produser.orders.state
+  Kafka --> DelSvc: consumer.orders.state (для доставки)
+  DelSvc -> DelSvc: Назначение курьера (см. UC-RCV-02)
+else A2. Самовывоз
+  OrdSvc -> OrdSvc: Пометить как самовывоз (без курьера)
+end
+group E2. Нет доступного курьера
+  DelSvc --> OrdSvc: Назначение в очередь; уведомление о задержке / предложить самовывоз
+end
+group E3. Очередь производства недоступна
+  OrdSvc -> OrdSvc: Удержать заказ и повторить постановку; при длит. сбое — эскалация
+end
+ 
+Prod --> Kafka: produser.orders.dish.status (статусы блюд)
+Kafka --> OrdSvc: consumer.orders.dish.status
+Prod --> Kafka: produser.production.lead.time (загрузка производства)
+Kafka --> OrdSvc: consumer.production.lead.time
+ 
+OrdSvc -> OrdSvc: Рассчитать время готовности/доставки и статус
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+OrdSvc -->]: Подтвердить успешную обработку вызывающему сценарию
+@enduml

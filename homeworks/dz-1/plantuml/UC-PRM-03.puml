@@ -1,0 +1,56 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-03 «Управлять локальными акциями ресторана» (специализация UC-PRM-02)
+actor "Владелец\nфраншизы" as Owner
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Owner -> StaffApp: Открыть управление локальными акциями своего ресторана
+StaffApp -> GW: Запрос управления [HTTPS REST]
+GW -> Auth: Проверить привязку владельца к ресторану
+Auth --> GW: OK
+GW -> LoySvc: Отобразить параметры локальной акции
+LoySvc --> StaffApp: Форма локальной акции
+ 
+Owner -> StaffApp: Задать условия, период, позиции (в пределах своего ресторана)
+alt A1. Изменение действующей акции
+  LoySvc -> LoyDb: Применить изменения и зафиксировать историю [JDBC]
+end
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать (область — только свой ресторан)
+LoySvc -> LoyDb: Сохранить локальную акцию [JDBC]
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+LoySvc --> StaffApp: Акция опубликована клиентам ресторана
+ 
+group E1. Попытка выйти за пределы ресторана
+  LoySvc --> StaffApp: Запретить расширение охвата; сообщить об ограничении полномочий
+end
+@enduml

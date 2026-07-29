@@ -1,0 +1,40 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-MAP-01 «Просмотреть пробки и дорожную ситуацию»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+ 
+note over App, Maps: Полностью клиентский сценарий (Д2).\nСерверная часть системы не задействована.
+Client -> App: Запросить дорожную ситуацию до выбранного ресторана
+App -> Maps: Запросить данные о пробках [HTTP, на клиенте]
+Maps --> App: Слой пробок и загруженности
+App --> Client: Отобразить карту с текущей дорожной ситуацией
+ 
+group E1. Данные недоступны
+  Maps --> App: Сервис недоступен
+  App --> Client: Сообщить об отсутствии данных о пробках, предложить повторить позже
+end
+@enduml

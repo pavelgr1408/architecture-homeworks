@@ -1,0 +1,89 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-01 «Оформить заказ» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "menu-service" as MenuSvc
+participant "loyalty-service" as LoySvc
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+participant "Система\nпроизводства" as Prod
+ 
+Client -> App: Инициировать оформление в выбранном ресторане
+App -> GW: Начать заказ / получить меню [HTTPS REST]
+GW -> MenuSvc: Получить меню и актуальные цены
+MenuSvc --> GW: Меню, цены
+GW -> LoySvc: Получить применимые акции
+LoySvc --> GW: Действующие предложения
+GW --> App: Меню с ценами и акциями
+App --> Client: Показать меню
+ 
+loop Формирование корзины
+  Client -> App: Добавить позицию/модификатор/количество
+  App -> GW: Обновить корзину
+  GW -> OrdSvc: Пересчитать корзину
+  OrdSvc -> OrdDb: Сохранить состав корзины [JDBC]
+  OrdSvc -> OrdSvc: Пересчёт суммы с учётом акций (реплика promotions.discount)
+  OrdSvc --> GW: Состав и предварительная сумма
+  GW --> App: Обновлённая корзина
+end
+ 
+alt A3. Применение акции
+  OrdSvc --> App: Применена акция: основание и новая сумма
+end
+ 
+Client -> App: Выбрать способ получения (доставка / в кафе)
+ref over App, OrdSvc: UC-RCV-01 «Получить заказ» — уточнение способа и пересчёт
+alt A4. Самовывоз вместо доставки
+  OrdSvc --> App: Переключение способа получения на «в кафе»
+end
+ 
+ref over App, OrdSvc, Prod: UC-ORD-05 «Просмотреть время получения»
+ref over App, OrdSvc: UC-PAY-01 «Выполнить оплату заказа»
+ 
+group E3. Оплата не завершена
+  OrdSvc --> App: Оплаченный заказ не создаётся, возврат к выбору оплаты
+end
+ 
+OrdSvc -> OrdSvc: Зафиксировать финальный состав, сумму, присвоить номер
+OrdSvc -> OrdDb: Сохранить заказ [JDBC]
+ 
+== Передача в обработку (include UC-ORD-06) ==
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> Prod: consumer.orders.state (на приготовление)
+OrdSvc --> Kafka: produser.orders.status (статус заказа)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+Push --> App: Уведомление о заказе
+App --> Client: Подтверждение оформления с номером заказа
+ 
+group E1. Позиция недоступна (шаг 3 или 9)
+  OrdSvc --> App: Удалить/запретить позицию, пояснить причину, пересчитать сумму
+end
+@enduml

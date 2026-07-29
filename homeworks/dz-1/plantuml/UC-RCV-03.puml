@@ -1,0 +1,64 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-03 «Получить заказ в кафе» (специализация UC-RCV-01)
+actor "Клиент" as Client
+actor "Сотрудник\nкафе" as Staff
+participant "web/mobile-app\n(клиент)" as App
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.status (готов к самовывозу)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: push с номером и временем
+Push --> App: Уведомление
+App --> Client: Показать номер заказа и время
+ 
+Client -> Staff: Прийти в ресторан и назвать номер заказа
+Staff -> StaffApp: Найти заказ по номеру
+StaffApp -> GW: Поиск заказа [HTTPS REST]
+GW -> OrdSvc: Найти заказ и проверить статус
+OrdSvc -> OrdDb: SELECT заказ [JDBC]
+OrdDb --> OrdSvc: Данные заказа
+OrdSvc --> StaffApp: Заказ найден
+ 
+alt A1. Оплата при получении (UC-PAY-04)
+  ref over Staff, OrdSvc: UC-PAY-04 «Оплатить в ресторане при получении»
+end
+ 
+Staff -> StaffApp: Отметить выдачу заказа
+StaffApp -> GW: Отметка выдачи
+GW -> OrdSvc: Зафиксировать выдачу
+OrdSvc -> OrdDb: UPDATE статус «выдан» [JDBC]
+Staff -> Client: Выдать заказ
+ 
+group E1. Заказ не найден
+  OrdSvc --> StaffApp: Заказ не найден — уточнить данные клиента или эскалировать
+end
+@enduml

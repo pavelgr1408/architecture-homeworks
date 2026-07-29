@@ -1,0 +1,56 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-04 «Управлять общенациональными акциями» (специализация UC-PRM-02)
+actor "Сотрудник\nголовной компании" as HQ
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+HQ -> StaffApp: Открыть управление общенациональными акциями
+StaffApp -> GW: Запрос управления [HTTPS REST]
+GW -> Auth: Проверить права уровня головной компании
+Auth --> GW: OK
+GW -> LoySvc: Отобразить параметры акции сети
+LoySvc --> StaffApp: Форма общенациональной акции
+ 
+HQ -> StaffApp: Задать условия, период, охват (вся сеть)
+alt A1. Завершение общенациональной акции
+  LoySvc -> LoyDb: Перевести акцию в статус «Завершена» по всей сети [JDBC]
+end
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать, применить правила приоритета
+LoySvc -> LoyDb: Сохранить акцию сети [JDBC]
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+LoySvc --> StaffApp: Акция опубликована во всей сети
+ 
+group E1. Недостаточно прав
+  LoySvc --> StaffApp: Актор не относится к головной компании — отклонить и журналировать
+end
+@enduml
