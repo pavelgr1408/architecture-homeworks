@@ -269,7 +269,7 @@ workspace {
                 this -> cont_menuApi "Получение меню" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
-                this -> cont_loyaltyApi "Получение акций" "HTTP REST" {
+                this -> cont_loyaltyApi "Получение/управление акциями" "HTTP REST" {
                     tags "Relation: Synchronous"
                 }
                 this -> cont_ordersApi "Создание заказа" "HTTP REST" {
