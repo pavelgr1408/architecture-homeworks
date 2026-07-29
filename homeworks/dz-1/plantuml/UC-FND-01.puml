@@ -1,0 +1,62 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-FND-01 «Найти и выбрать ресторан»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "restaurant-service" as RestSvc
+database "restaurant-db" as RestDb
+ 
+Client -> App: Запустить поиск ресторана
+alt Геолокация доступна
+  App -> Maps: Определить геопозицию (HTTP, на клиенте)
+  Maps --> App: Координаты
+else A1. Ручной выбор без геолокации
+  Client -> App: Ввести город/адрес вручную
+end
+ 
+App -> GW: GET /restaurants (гео/адрес) [HTTPS REST]
+GW -> Auth: Проверить токен/сессию
+Auth --> GW: OK
+GW -> RestSvc: Подобрать рестораны сети
+RestSvc -> RestDb: SELECT рестораны (режим, доставка) [JDBC]
+RestDb --> RestSvc: Данные ресторанов
+RestSvc --> GW: Рестораны (адрес, расстояние, режим, доставка)
+GW --> App: Список ресторанов
+App --> Client: Показать список
+ 
+Client -> App: Применить фильтры (доставка, часы)
+App -> GW: GET /restaurants?filters
+GW -> RestSvc: Повторный подбор по фильтрам
+RestSvc --> GW: Отфильтрованный список
+GW --> App: Обновлённый список
+ 
+Client -> App: Выбрать конкретный ресторан
+App --> Client: Ресторан зафиксирован как контекст сессии
+note over App: Контекст выбранного ресторана\nиспользуется далее в UC-ORD-01
+
+@enduml
