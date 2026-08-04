@@ -27,6 +27,7 @@ class Homework:
     show_structurizr: bool
     show_plantuml: bool
     show_openapi: bool
+    show_asyncapi: bool
 
 
 def load_homework(directory: Path) -> Homework:
@@ -44,6 +45,7 @@ def load_homework(directory: Path) -> Homework:
         show_structurizr=bool(config.get("structurizr", True)),
         show_plantuml=bool(config.get("plantuml", True)),
         show_openapi=bool(config.get("openapi", True)),
+        show_asyncapi=bool(config.get("asyncapi", True)),
     )
 
 
@@ -83,6 +85,45 @@ def swagger_html(title: str, spec_filename: str = "openapi.yaml") -> str:
         presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
         layout: "StandaloneLayout"
       }});
+    }};
+  </script>
+</body>
+</html>
+"""
+
+
+def asyncapi_html(title: str, spec_filename: str) -> str:
+    safe_title = html.escape(title)
+    schema = json.dumps(
+        {"url": spec_filename, "options": {"method": "GET", "mode": "cors"}},
+        ensure_ascii=False,
+    )
+    config = json.dumps({"show": {"sidebar": True, "errors": True}}, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{safe_title} — AsyncAPI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@asyncapi/react-component@2/styles/default.min.css">
+  <style>
+    html {{ box-sizing: border-box; }}
+    *, *::before, *::after {{ box-sizing: inherit; }}
+    body {{ margin: 0; background: #fafafa; }}
+  </style>
+</head>
+<body>
+  <div id="asyncapi"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@asyncapi/react-component@2/browser/standalone/index.js"></script>
+  <script>
+    window.onload = () => {{
+      AsyncApiStandalone.render(
+        {{
+          schema: {schema},
+          config: {config},
+        }},
+        document.getElementById("asyncapi")
+      );
     }};
   </script>
 </body>
@@ -154,6 +195,36 @@ def build_homework(homework: Homework) -> None:
             "[Открыть Swagger UI на отдельной странице](openapi/index.html) · "
             "[Скачать OpenAPI YAML](openapi/openapi.yaml)"
         )
+
+    asyncapi_source_dir = homework.source_dir / "asyncapi"
+    if homework.show_asyncapi and asyncapi_source_dir.is_dir():
+        specs = sorted(
+            path
+            for path in asyncapi_source_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in {".yaml", ".yml"}
+        )
+        if specs:
+            asyncapi_target = target / "asyncapi"
+            asyncapi_target.mkdir(parents=True, exist_ok=True)
+
+            section: list[str] = ["## AsyncAPI"]
+            for spec in specs:
+                shutil.copy2(spec, asyncapi_target / spec.name)
+                viewer_name = f"{spec.stem}.html"
+                (asyncapi_target / viewer_name).write_text(
+                    asyncapi_html(homework.title, spec.name),
+                    encoding="utf-8",
+                )
+                section.append(
+                    f'<iframe class="asyncapi-frame" '
+                    f'src="asyncapi/{viewer_name}" '
+                    f'title="AsyncAPI: {html.escape(spec.stem)}" '
+                    f'loading="lazy"></iframe>\n\n'
+                    f"[Открыть на отдельной странице](asyncapi/{viewer_name}) · "
+                    f"[Скачать {html.escape(spec.name)}](asyncapi/{spec.name})"
+                )
+
+            sections.append("\n\n".join(section))
 
     (target / "index.md").write_text(
         "\n\n---\n\n".join(sections).rstrip() + "\n",
