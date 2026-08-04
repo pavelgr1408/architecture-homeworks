@@ -4,3 +4,4 @@ description: "Пример полного домашнего задания: Mar
 plantuml: true
 structurizr: true
 openapi: true
+asyncapi: true
