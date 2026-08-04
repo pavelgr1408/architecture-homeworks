@@ -1,0 +1,65 @@
+asyncapi: 3.0.0
+
+info:
+  title: Homework 01 Kafka Events API
+  version: 1.0.0
+  description: |
+    AsyncAPI documentation for Kafka events from homework 01.
+
+servers:
+  kafka-local:
+    host: localhost:9092
+    protocol: kafka
+
+channels:
+
+  user.created:
+    address: user.created
+
+    messages:
+      userCreated:
+        $ref: "#/components/messages/UserCreated"
+
+
+operations:
+
+  consumeUserCreated:
+
+    action: receive
+
+    channel:
+      $ref: "#/channels/user.created"
+
+
+components:
+
+  messages:
+
+    UserCreated:
+
+      name: UserCreated
+
+      title: User Created Event
+
+      payload:
+
+        type: object
+
+        properties:
+
+          id:
+            type: string
+            example: "123"
+
+          username:
+            type: string
+            example: "pavel"
+
+          createdAt:
+            type: string
+            format: date-time
+
+        required:
+          - id
+          - username
+          - createdAt
