@@ -1,0 +1,1253 @@
+UC-FND-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-FND-01 «Найти и выбрать ресторан»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "restaurant-service" as RestSvc
+database "restaurant-db" as RestDb
+ 
+Client -> App: Запустить поиск ресторана
+alt Геолокация доступна
+  App -> Maps: Определить геопозицию (HTTP, на клиенте)
+  Maps --> App: Координаты
+else A1. Ручной выбор без геолокации
+  Client -> App: Ввести город/адрес вручную
+end
+ 
+App -> GW: GET /restaurants (гео/адрес) [HTTPS REST]
+GW -> Auth: Проверить токен/сессию
+Auth --> GW: OK
+GW -> RestSvc: Подобрать рестораны сети
+RestSvc -> RestDb: SELECT рестораны (режим, доставка) [JDBC]
+RestDb --> RestSvc: Данные ресторанов
+RestSvc --> GW: Рестораны (адрес, расстояние, режим, доставка)
+GW --> App: Список ресторанов
+App --> Client: Показать список
+ 
+Client -> App: Применить фильтры (доставка, часы)
+App -> GW: GET /restaurants?filters
+GW -> RestSvc: Повторный подбор по фильтрам
+RestSvc --> GW: Отфильтрованный список
+GW --> App: Обновлённый список
+ 
+Client -> App: Выбрать конкретный ресторан
+App --> Client: Ресторан зафиксирован как контекст сессии
+note over App: Контекст выбранного ресторана\nиспользуется далее в UC-ORD-01
+ 
+group E1. Картографический сервис недоступен
+  App --> Client: Переход в режим ручного ввода адреса
+end
+group A2/E2. Вне зоны обслуживания / справочник пуст
+  RestSvc --> GW: Пустой результат / вне зоны доставки
+  GW --> App: Предложить самовывоз, расширить радиус или сменить адрес
+end
+@enduml
+
+
+UC-MAP-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-MAP-01 «Просмотреть пробки и дорожную ситуацию»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+ 
+note over App, Maps: Полностью клиентский сценарий (Д2).\nСерверная часть системы не задействована.
+Client -> App: Запросить дорожную ситуацию до выбранного ресторана
+App -> Maps: Запросить данные о пробках [HTTP, на клиенте]
+Maps --> App: Слой пробок и загруженности
+App --> Client: Отобразить карту с текущей дорожной ситуацией
+ 
+group E1. Данные недоступны
+  Maps --> App: Сервис недоступен
+  App --> Client: Сообщить об отсутствии данных о пробках, предложить повторить позже
+end
+@enduml
+
+
+UC-MAP-02
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-MAP-02 «Построить маршрут до ресторана» (extend UC-MAP-01)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "restaurant-service" as RestSvc
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+ 
+note over App: Адрес/координаты ресторана берутся из контекста UC-FND-01
+Client -> App: Запросить построение маршрута до ресторана
+opt Координаты ресторана отсутствуют в контексте
+  App -> RestSvc: Получить адрес/координаты выбранного ресторана
+  RestSvc --> App: Координаты ресторана
+end
+App -> Maps: Построить маршрут с учётом дорожной ситуации [HTTP, на клиенте]
+Maps --> App: Маршрут, расстояние, время в пути
+App --> Client: Отобразить маршрут и ориентировочное время
+ 
+alt A1. Маршрут после оформления заказа
+  App -> Maps: Использовать адрес ресторана как точку назначения
+end
+group E1. Маршрут не построен
+  Maps --> App: Сервис маршрутизации недоступен
+  App --> Client: Показать адрес и предложить повторить
+end
+@enduml
+
+
+UC-ORD-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-01 «Оформить заказ» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "menu-service" as MenuSvc
+participant "loyalty-service" as LoySvc
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+participant "Система\nпроизводства" as Prod
+ 
+Client -> App: Инициировать оформление в выбранном ресторане
+App -> GW: Начать заказ / получить меню [HTTPS REST]
+GW -> MenuSvc: Получить меню и актуальные цены
+MenuSvc --> GW: Меню, цены
+GW -> LoySvc: Получить применимые акции
+LoySvc --> GW: Действующие предложения
+GW --> App: Меню с ценами и акциями
+App --> Client: Показать меню
+ 
+loop Формирование корзины
+  Client -> App: Добавить позицию/модификатор/количество
+  App -> GW: Обновить корзину
+  GW -> OrdSvc: Пересчитать корзину
+  OrdSvc -> OrdDb: Сохранить состав корзины [JDBC]
+  OrdSvc -> OrdSvc: Пересчёт суммы с учётом акций (реплика promotions.discount)
+  OrdSvc --> GW: Состав и предварительная сумма
+  GW --> App: Обновлённая корзина
+end
+ 
+alt A3. Применение акции
+  OrdSvc --> App: Применена акция: основание и новая сумма
+end
+ 
+Client -> App: Выбрать способ получения (доставка / в кафе)
+ref over App, OrdSvc: UC-RCV-01 «Получить заказ» — уточнение способа и пересчёт
+alt A4. Самовывоз вместо доставки
+  OrdSvc --> App: Переключение способа получения на «в кафе»
+end
+ 
+ref over App, OrdSvc, Prod: UC-ORD-05 «Просмотреть время получения»
+ref over App, OrdSvc: UC-PAY-01 «Выполнить оплату заказа»
+ 
+group E3. Оплата не завершена
+  OrdSvc --> App: Оплаченный заказ не создаётся, возврат к выбору оплаты
+end
+ 
+OrdSvc -> OrdSvc: Зафиксировать финальный состав, сумму, присвоить номер
+OrdSvc -> OrdDb: Сохранить заказ [JDBC]
+ 
+== Передача в обработку (include UC-ORD-06) ==
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> Prod: consumer.orders.state (на приготовление)
+OrdSvc --> Kafka: produser.orders.status (статус заказа)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+Push --> App: Уведомление о заказе
+App --> Client: Подтверждение оформления с номером заказа
+ 
+group E1. Позиция недоступна (шаг 3 или 9)
+  OrdSvc --> App: Удалить/запретить позицию, пояснить причину, пересчитать сумму
+end
+@enduml
+
+
+UC-ORD-02
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-02 «Оформить заказ по факсу» (специализация UC-ORD-01)
+actor "Клиент" as Client
+actor "Сотрудник\nкафе" as Staff
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "menu-service" as MenuSvc
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "Система\nпроизводства" as Prod
+ 
+Client -->> Staff: Отправить заказ по факсу (состав, контакты) [вне системы]
+Staff -> StaffApp: Ввести заказ от имени клиента
+StaffApp -> GW: Создать заказ [HTTPS REST]
+GW -> MenuSvc: Проверить позиции по актуальному меню
+MenuSvc --> GW: Позиции, цены
+GW -> OrdSvc: Сформировать заказ
+OrdSvc --> StaffApp: Отобразить сумму
+ 
+alt A1. Уточнение по телефону (факс распознан частично)
+  Staff -->> Client: Связаться и уточнить состав
+end
+group E2. Факс нечитаем
+  Staff -->> Client: Запросить повторную отправку или уточнить по телефону
+end
+ 
+Staff -> StaffApp: Уточнить способ получения и оплаты
+StaffApp -> GW: Зафиксировать параметры
+GW -> OrdSvc: Создать заказ с уникальным номером
+OrdSvc -> OrdDb: Сохранить заказ [JDBC]
+ 
+== Передача в обработку (UC-ORD-06) ==
+OrdSvc --> Kafka: produser.orders.state
+Kafka --> Prod: consumer.orders.state (на приготовление)
+OrdSvc --> GW: Номер заказа и время готовности
+GW --> StaffApp: Данные заказа
+Staff -->> Client: Сообщить номер заказа и время готовности
+ 
+group E1. Позиция недоступна (шаг 3)
+  OrdSvc --> StaffApp: Позиция запрещена; сотрудник согласует замену с клиентом
+end
+@enduml
+
+
+UC-ORD-03
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-03 «Оформить заказ онлайн» (специализация UC-ORD-01)
+actor "Клиент" as Client
+participant "mobile-app-apple /\nmobile-app-Android / web-app" as App
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "menu-service" as MenuSvc
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "Система\nпроизводства" as Prod
+ 
+Client -> App: Нажать «Оформить заказ» и формировать корзину
+alt A1. Гостевое оформление (не авторизован)
+  App -> GW: Оформление без регистрации (контактные данные)
+else Авторизованный клиент
+  App -> GW: Запрос с токеном
+  GW -> Auth: Проверить сессию
+  Auth --> GW: OK
+end
+ 
+App -> GW: Обновить корзину [HTTPS REST]
+GW -> MenuSvc: Меню и цены
+GW -> OrdSvc: Пересчитать состав и сумму (акции в реальном времени)
+OrdSvc -> OrdDb: Сохранить корзину [JDBC]
+OrdSvc --> App: Состав, сумма, применимые акции
+ 
+Client -> App: Выбрать способ получения; при доставке — адрес
+ref over App, OrdSvc, Prod: UC-ORD-05 «Просмотреть время получения»
+Client -> App: Выбрать способ оплаты и подтвердить
+ref over App, OrdSvc: UC-PAY-01 «Выполнить оплату заказа»
+ 
+group E2. Оплата отклонена
+  OrdSvc --> App: Заказ не создаётся; повторить оплату или сменить способ
+end
+group E1. Потеря соединения
+  App --> Client: Корзина сохранена; продолжить с места прерывания
+end
+ 
+OrdSvc -> OrdSvc: Создать заказ, присвоить номер
+OrdSvc --> Kafka: produser.orders.state (в обработку — UC-ORD-06)
+Kafka --> Prod: consumer.orders.state
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc --> App: push с номером и временем готовности
+App --> Client: Показать номер заказа
+@enduml
+
+
+UC-ORD-05
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-05 «Просмотреть время получения заказа» (extend UC-ORD-01)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "Система\nпроизводства" as Prod
+ 
+note over Prod, OrdSvc: Фоновая репликация загрузки производства (Д4)
+Prod --> Kafka: produser.production.lead.time
+Kafka --> OrdSvc: consumer.production.lead.time
+OrdSvc -> OrdDb: Обновить локальную реплику времени [JDBC]
+ 
+== Запрос времени клиентом ==
+Client -> App: Запросить время получения заказа
+App -> GW: GET /orders/{id}/eta [HTTPS REST]
+GW -> OrdSvc: Оценить загрузку и состав заказа
+OrdSvc -> OrdDb: Прочитать локальную реплику lead.time [JDBC]
+OrdDb --> OrdSvc: Данные загрузки
+OrdSvc -> OrdSvc: Рассчитать ориентировочное время\n(готовности для самовывоза / доставки)
+OrdSvc --> GW: Время получения
+GW --> App: Ориентировочное время
+App --> Client: Показать время; клиент продолжает оформление
+ 
+alt A1. Отложенное время
+  Client -> App: Выбрать желаемый интервал получения (в пределах режима работы)
+  App -> GW: Зафиксировать интервал
+  GW -> OrdSvc: Сохранить интервал
+end
+group E1. Оценка недоступна
+  OrdSvc --> App: Показать типовое (усреднённое) время с пометкой о приблизительности
+end
+@enduml
+
+
+UC-ORD-06
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-ORD-06 «Обработать заказ» (include <= UC-ORD-01)
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "Система\nпроизводства" as Prod
+participant "delivery-service" as DelSvc
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+[-> OrdSvc: Оформленный заказ (состав, способ получения и оплаты)
+OrdSvc -> OrdSvc: Валидация: состав, доступность позиций,\nстатус оплаты, режим работы ресторана
+ 
+group E1. Валидация не пройдена
+  OrdSvc -->]: Заказ не ставится в производство; возврат причины в оформление
+end
+ 
+OrdSvc -> OrdDb: Зарегистрировать заказ в очереди производства [JDBC]
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> Prod: consumer.orders.state (на приготовление)
+ 
+alt A1. Заказ на доставку
+  OrdSvc --> Kafka: produser.orders.state
+  Kafka --> DelSvc: consumer.orders.state (для доставки)
+  DelSvc -> DelSvc: Назначение курьера (см. UC-RCV-02)
+else A2. Самовывоз
+  OrdSvc -> OrdSvc: Пометить как самовывоз (без курьера)
+end
+group E2. Нет доступного курьера
+  DelSvc --> OrdSvc: Назначение в очередь; уведомление о задержке / предложить самовывоз
+end
+group E3. Очередь производства недоступна
+  OrdSvc -> OrdSvc: Удержать заказ и повторить постановку; при длит. сбое — эскалация
+end
+ 
+Prod --> Kafka: produser.orders.dish.status (статусы блюд)
+Kafka --> OrdSvc: consumer.orders.dish.status
+Prod --> Kafka: produser.production.lead.time (загрузка производства)
+Kafka --> OrdSvc: consumer.production.lead.time
+ 
+OrdSvc -> OrdSvc: Рассчитать время готовности/доставки и статус
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+OrdSvc -->]: Подтвердить успешную обработку вызывающему сценарию
+@enduml
+
+
+UC-PAY-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-01 «Выполнить оплату заказа» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "payment-service" as PaySvc
+database "payment-db" as PayDb
+ 
+note over OrdSvc, PaySvc: Общая часть: платёжный сервис узнаёт о заказе\nдо клиентского запроса на оплату
+OrdSvc --> Kafka: produser.orders.state (передача заказа)
+Kafka --> PaySvc: consumer.orders.state (получение заказа)
+PaySvc -> PayDb: Сохранить контекст заказа [JDBC]
+ 
+Client -> App: Перейти к оплате
+App -> GW: Показать доступные способы оплаты [HTTPS REST]
+GW --> App: Способы оплаты (для выбранного способа получения)
+Client -> App: Выбрать способ оплаты
+ 
+alt A1. Оплата онлайн
+  ref over App, PaySvc: UC-PAY-02 «Оплатить онлайн»
+else A2. Оплата курьеру
+  ref over App, PaySvc: UC-PAY-03 «Оплатить курьеру»
+else A3. Оплата в ресторане
+  ref over App, PaySvc: UC-PAY-04 «Оплатить в ресторане при получении»
+end
+ 
+PaySvc --> Kafka: produser.orders.payments.status (статус оплаты)
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Присвоить статус оплаты, разрешить обработку/выдачу
+ 
+group E1. Оплата отклонена
+  PaySvc --> App: Оплаченный заказ не создаётся; повторить или сменить способ
+end
+group E2. Статус оплаты неизвестен
+  PaySvc -> PaySvc: Заблокировать повторную оплату этой попытки; запросить статус; журналировать инцидент
+end
+@enduml
+
+
+UC-PAY-02
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-02 «Оплатить онлайн» (специализация UC-PAY-01)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "payment-service" as PaySvc
+database "payment-db" as PayDb
+participant "Платёжный\nшлюз" as PayGw
+ 
+OrdSvc --> Kafka: produser.orders.state
+Kafka --> PaySvc: consumer.orders.state (заказ известен платёжному сервису)
+ 
+Client -> App: Подтвердить онлайн-оплату, ввести данные в форме провайдера
+App -> GW: Запрос оплаты [HTTPS REST]
+GW -> PaySvc: Инициировать платёж (сквозной идентификатор)
+PaySvc -> PayGw: Инициализация оплаты / получить платёжную ссылку [HTTP REST]
+PayGw --> PaySvc: Платёжная ссылка
+ 
+alt Webhook получен
+  PayGw --> PaySvc: Статус оплаты [Webhook]
+else Webhook не получен
+  PaySvc -> PayGw: Запрос статуса оплаты [HTTP REST]
+  PayGw --> PaySvc: Статус оплаты
+end
+PaySvc -> PayDb: Зафиксировать статус «оплачен» [JDBC]
+ 
+PaySvc --> Kafka: produser.orders.payments.status
+Kafka --> OrdSvc: consumer.orders.payments.status
+note over OrdSvc: Заказ передаётся в обработку только\nпосле подтверждения оплаты
+PaySvc --> App: Оплата подтверждена
+ 
+group E1. Платёж отклонён
+  PaySvc --> App: Показать причину; повторить или сменить способ (UC-PAY-01)
+end
+group E2. Статус неизвестен (тайм-аут)
+  PaySvc -> PaySvc: Блокировать повторную оплату; запросить статус операции
+end
+@enduml
+
+
+UC-PAY-03
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-03 «Оплатить курьеру» (специализация UC-PAY-01)
+actor "Клиент" as Client
+actor "Курьер" as Courier
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "payment-service" as PaySvc
+participant "delivery-service" as DelSvc
+participant "Курьерская\nсистема" as DeliveryExt
+participant "Платёжный\nшлюз" as PayGw
+ 
+OrdSvc --> Kafka: produser.orders.state
+Kafka --> PaySvc: consumer.orders.state
+note over PaySvc: Оплата не онлайн — формируется платёжная ссылка (Д5: только карта через терминал)
+PaySvc --> Kafka: produser.orders.payments.link (платёжная ссылка)
+Kafka --> DelSvc: consumer.orders.payments.link
+DelSvc -> DeliveryExt: Передать линк на оплату [HTTP REST]
+ 
+Courier -> Client: Передать заказ и запросить оплату
+Client -> Courier: Оплатить картой по ссылке через терминал курьера
+Courier -> DeliveryExt: Подтвердить приём оплаты
+ 
+DeliveryExt --> DelSvc: Статус «доставлено/оплачено» [Webhook]
+DelSvc --> Kafka: produser.orders.delivery.status
+Kafka --> OrdSvc: consumer.orders.delivery.status
+OrdSvc --> PaySvc: Запрос окончательного подтверждения оплаты
+PaySvc -> PayGw: Запрос статуса оплаты по заказу [HTTP REST]
+PayGw --> PaySvc: Статус «оплачено»
+PaySvc --> Kafka: produser.orders.payments.status
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Пометить заказ оплаченным и выданным
+ 
+group E1. Клиент отказался от оплаты
+  Courier -> DeliveryExt: Зафиксировать отказ; применить правило неоплаты и возврата заказа
+end
+@enduml
+
+
+UC-PAY-04
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PAY-04 «Оплатить в ресторане при получении» (специализация UC-PAY-01)
+actor "Клиент" as Client
+actor "Сотрудник\nкафе" as Staff
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "payment-service" as PaySvc
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+participant "Кассовая\nсистема" as POS
+ 
+note over OrdSvc: Заказ (в т. ч. факсовый, UC-ORD-02) создан и ждёт получения
+Client -> Staff: Назвать номер заказа и перейти к оплате
+Staff -> StaffApp: Инициировать оплату
+StaffApp -> GW: Запрос оплаты [HTTPS REST]
+GW -> PaySvc: Инициировать оплату на кассе
+PaySvc -> POS: Инициализация оплаты на кассе/терминале [HTTP REST]
+note over POS: Даже наличная оплата проходит через кассу\nс терминальным чеком (Д6)
+POS --> PaySvc: Подтверждение оплаты при получении [Webhook]
+PaySvc --> Kafka: produser.orders.payments.status
+Kafka --> OrdSvc: consumer.orders.payments.status
+OrdSvc -> OrdSvc: Зафиксировать оплату, разрешить выдачу
+ 
+ref over Staff, OrdSvc: UC-RCV-03 «Получить заказ в кафе» — отметка выдачи
+Staff -> Client: Выдать заказ
+ 
+group E1. Оплата не прошла
+  POS --> PaySvc: Отказ кассовой операции
+  PaySvc --> StaffApp: Предложить иной способ; заказ не выдаётся до оплаты
+end
+@enduml
+
+
+UC-PRM-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-01 «Ознакомиться с акционными и специальными предложениями»
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Client -> App: Открыть раздел акций / меню ресторана
+App -> GW: GET /promotions (регион, ресторан) [HTTPS REST]
+GW -> Auth: Проверить сессию
+Auth --> GW: OK
+GW -> LoySvc: Получить действующие предложения
+LoySvc -> LoyDb: SELECT акции [JDBC]
+LoyDb --> LoySvc: Общенациональные и локальные акции
+LoySvc -> LoySvc: Объединить нац.+локальные,\nотсеять недействующие
+LoySvc --> GW: Актуальные предложения (условия, сроки)
+GW --> App: Перечень акций
+App --> Client: Показать акции; кнопка перехода к оформлению
+ 
+alt A1. Просмотр без выбранного ресторана
+  LoySvc --> App: Только общенациональные + предложение выбрать ресторан
+end
+ 
+group E1. Подсистема акций недоступна
+  LoySvc --> GW: Тайм-аут/ошибка
+  GW --> App: Сообщить о временной недоступности\n(переход к меню/оформлению не блокируется)
+end
+ 
+note over LoySvc, OrdSvc: Реплика акций для расчёта корзины:\nloyalty-service --> kafka(promotions.discount) --> orders-service
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+@enduml
+
+
+UC-PRM-02
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-02 «Управлять акциями и специальными предложениями» (обобщающий)
+actor "Сотрудник" as Staff
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Staff -> StaffApp: Открыть управление акциями (создать/изменить)
+StaffApp -> GW: Запрос управления акцией [HTTPS REST]
+GW -> Auth: Проверить полномочия (уровень local/national)
+Auth --> GW: OK
+GW -> LoySvc: Открыть форму параметров акции
+LoySvc --> StaffApp: Форма (условия, период, позиции, охват)
+ 
+Staff -> StaffApp: Задать параметры акции своего уровня
+alt A1. Локальная акция (UC-PRM-03)
+  note over LoySvc: Область действия — конкретный ресторан франшизы
+else A2. Общенациональная акция (UC-PRM-04)
+  note over LoySvc: Область действия — вся сеть
+else A3. Завершение акции
+  LoySvc -> LoyDb: Перевести акцию в статус «Завершена», прекратить публикацию
+end
+ 
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать параметры и правила приоритета
+LoySvc -> LoyDb: Сохранить акцию и историю изменения [JDBC]
+ 
+== Публикация акции ==
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount (для применения при оформлении)
+LoySvc --> StaffApp: Акция опубликована целевой аудитории
+ 
+group E1. Недостаточно прав
+  LoySvc --> StaffApp: Отклонить действие и журналировать попытку
+end
+group E2. Конфликт правил акций
+  LoySvc --> StaffApp: Сообщить о конфликте; скорректировать условия/приоритет
+end
+@enduml
+
+
+UC-PRM-03
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-03 «Управлять локальными акциями ресторана» (специализация UC-PRM-02)
+actor "Владелец\nфраншизы" as Owner
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+Owner -> StaffApp: Открыть управление локальными акциями своего ресторана
+StaffApp -> GW: Запрос управления [HTTPS REST]
+GW -> Auth: Проверить привязку владельца к ресторану
+Auth --> GW: OK
+GW -> LoySvc: Отобразить параметры локальной акции
+LoySvc --> StaffApp: Форма локальной акции
+ 
+Owner -> StaffApp: Задать условия, период, позиции (в пределах своего ресторана)
+alt A1. Изменение действующей акции
+  LoySvc -> LoyDb: Применить изменения и зафиксировать историю [JDBC]
+end
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать (область — только свой ресторан)
+LoySvc -> LoyDb: Сохранить локальную акцию [JDBC]
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+LoySvc --> StaffApp: Акция опубликована клиентам ресторана
+ 
+group E1. Попытка выйти за пределы ресторана
+  LoySvc --> StaffApp: Запретить расширение охвата; сообщить об ограничении полномочий
+end
+@enduml
+
+
+UC-PRM-04
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-PRM-04 «Управлять общенациональными акциями» (специализация UC-PRM-02)
+actor "Сотрудник\nголовной компании" as HQ
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "auth-service" as Auth
+participant "loyalty-service" as LoySvc
+database "loyalty-db" as LoyDb
+queue "kafka" as Kafka
+participant "orders-service" as OrdSvc
+ 
+HQ -> StaffApp: Открыть управление общенациональными акциями
+StaffApp -> GW: Запрос управления [HTTPS REST]
+GW -> Auth: Проверить права уровня головной компании
+Auth --> GW: OK
+GW -> LoySvc: Отобразить параметры акции сети
+LoySvc --> StaffApp: Форма общенациональной акции
+ 
+HQ -> StaffApp: Задать условия, период, охват (вся сеть)
+alt A1. Завершение общенациональной акции
+  LoySvc -> LoyDb: Перевести акцию в статус «Завершена» по всей сети [JDBC]
+end
+StaffApp -> GW: Активировать акцию
+GW -> LoySvc: Валидировать, применить правила приоритета
+LoySvc -> LoyDb: Сохранить акцию сети [JDBC]
+LoySvc --> Kafka: produser.promotions.discount
+Kafka --> OrdSvc: consumer.promotions.discount
+LoySvc --> StaffApp: Акция опубликована во всей сети
+ 
+group E1. Недостаточно прав
+  LoySvc --> StaffApp: Актор не относится к головной компании — отклонить и журналировать
+end
+@enduml
+
+
+UC-RCV-01
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-01 «Получить заказ» (обобщающий)
+actor "Клиент" as Client
+participant "web/mobile-app\n(клиент)" as App
+participant "orders-service" as OrdSvc
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.status (заказ готов)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: Отправить push [HTTP]
+Push --> App: Уведомление о готовности
+App --> Client: Показать готовность и способ получения
+ 
+alt A1. Получение доставкой
+  ref over Client, OrdSvc: UC-RCV-02 «Получить заказ доставкой»
+else A2. Получение в кафе
+  ref over Client, OrdSvc: UC-RCV-03 «Получить заказ в кафе»
+end
+ 
+OrdSvc -> OrdSvc: Зафиксировать факт выдачи и закрыть заказ
+ 
+group E1. Клиент не явился / недоступен
+  OrdSvc -> OrdSvc: Зафиксировать неполучение по правилу ресторана
+  OrdSvc --> App: Уведомить клиента
+end
+@enduml
+
+
+UC-RCV-02
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-02 «Получить заказ доставкой» (специализация UC-RCV-01)
+actor "Клиент" as Client
+actor "Курьер" as Courier
+participant "web/mobile-app\n(клиент)" as App
+participant "Яндекс.Карты\n(Mapkit)" as Maps
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+participant "delivery-service" as DelSvc
+database "delivery-Redis" as Redis
+queue "kafka" as Kafka
+participant "Курьерская\nсистема" as DeliveryExt
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.state (готов к доставке)
+Kafka --> DelSvc: consumer.orders.state (для доставки)
+DelSvc -> DeliveryExt: Поиск курьера [HTTP REST]
+DeliveryExt --> DelSvc: Курьер назначен
+ 
+group E2. Нет доступного курьера
+  DelSvc --> OrdSvc: Очередь назначения / задержка / предложить самовывоз (UC-RCV-03)
+end
+ 
+Courier -> DeliveryExt: Забрать заказ и выехать по маршруту
+loop Пулинг координат курьера
+  DelSvc -> DeliveryExt: Получить координаты курьера [HTTP REST]
+  DeliveryExt --> DelSvc: Координаты
+  DelSvc -> Redis: Записать координаты [RESP]
+  Client -> GW: Отслеживать доставку (пулинг)
+  GW -> DelSvc: Получить координаты курьера
+  DelSvc --> GW: Координаты
+  GW --> App: Координаты курьера
+  App -> Maps: Отобразить курьера на карте (на клиенте)
+end
+ 
+Courier -> Client: Передать заказ
+alt Оплата курьеру (UC-PAY-03)
+  ref over Client, Courier, DeliveryExt: UC-PAY-03 «Оплатить курьеру»
+else A1. Оплачено онлайн (UC-PAY-02)
+  Courier -> Client: Передать заказ без приёма оплаты
+end
+ 
+DeliveryExt --> DelSvc: Статус «доставлено» [Webhook]
+DelSvc --> Kafka: produser.orders.delivery.status
+Kafka --> OrdSvc: consumer.orders.delivery.status
+OrdSvc --> Kafka: produser.orders.status
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: push «доставлено»
+OrdSvc -> OrdSvc: Зафиксировать доставку и закрыть заказ
+ 
+group E1. Клиент недоступен по адресу
+  DeliveryExt --> DelSvc: Неудача доставки; применить правило ресторана и уведомить клиента
+end
+@enduml
+
+
+UC-RCV-03
+
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam BackgroundColor #FFFFFF
+skinparam maxMessageSize 240
+skinparam sequenceMessageAlign left
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #95A5A6
+  LifeLineBackgroundColor #F8F9F9
+  ParticipantBorderColor #21618C
+  ParticipantBackgroundColor #EAF2F8
+  ParticipantFontColor #1B2631
+  ActorBorderColor #196F3D
+  ActorBackgroundColor #D5F5E3
+  DatabaseBorderColor #B9770E
+  DatabaseBackgroundColor #FCF3CF
+  BoxBorderColor #D5D8DC
+  GroupBorderColor #A569BD
+  GroupBackgroundColor #F4ECF7
+  GroupHeaderFontColor #6C3483
+}
+skinparam noteBackgroundColor #FEF9E7
+skinparam noteBorderColor #B7950B
+autonumber
+title UC-RCV-03 «Получить заказ в кафе» (специализация UC-RCV-01)
+actor "Клиент" as Client
+actor "Сотрудник\nкафе" as Staff
+participant "web/mobile-app\n(клиент)" as App
+participant "web-app-staff" as StaffApp
+participant "api-gateway" as GW
+participant "orders-service" as OrdSvc
+database "orders-db" as OrdDb
+queue "kafka" as Kafka
+participant "notification-service" as NotifSvc
+participant "APNs/FCM/Huawei" as Push
+ 
+OrdSvc --> Kafka: produser.orders.status (готов к самовывозу)
+Kafka --> NotifSvc: consumer.orders.status
+NotifSvc -> Push: push с номером и временем
+Push --> App: Уведомление
+App --> Client: Показать номер заказа и время
+ 
+Client -> Staff: Прийти в ресторан и назвать номер заказа
+Staff -> StaffApp: Найти заказ по номеру
+StaffApp -> GW: Поиск заказа [HTTPS REST]
+GW -> OrdSvc: Найти заказ и проверить статус
+OrdSvc -> OrdDb: SELECT заказ [JDBC]
+OrdDb --> OrdSvc: Данные заказа
+OrdSvc --> StaffApp: Заказ найден
+ 
+alt A1. Оплата при получении (UC-PAY-04)
+  ref over Staff, OrdSvc: UC-PAY-04 «Оплатить в ресторане при получении»
+end
+ 
+Staff -> StaffApp: Отметить выдачу заказа
+StaffApp -> GW: Отметка выдачи
+GW -> OrdSvc: Зафиксировать выдачу
+OrdSvc -> OrdDb: UPDATE статус «выдан» [JDBC]
+Staff -> Client: Выдать заказ
+ 
+group E1. Заказ не найден
+  OrdSvc --> StaffApp: Заказ не найден — уточнить данные клиента или эскалировать
+end
+@enduml
+
